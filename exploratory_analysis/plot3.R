@@ -32,7 +32,7 @@ for(col in c('fips', 'SCC', 'Pollutant', 'type')) NEI[, col] <- as.factor(NEI[, 
 # NEI[, (cols) := lapply(.SD, function(x) as.factor(x)), .SDcols = cols]
 
 if(!dir.exists('pics')) dir.create('pics')
-# library(ggplot2)
+library(ggplot2)
 # if (!file.exists('load_data.R')) setwd('~/projects/training/datascience/exploratory_analysis')
 # source('load_data.R')
 
