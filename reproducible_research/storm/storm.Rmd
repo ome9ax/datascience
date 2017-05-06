@@ -43,15 +43,37 @@ get_file <- function(file_url = 'https://d396qusza40orc.cloudfront.net/repdata%2
 
 # Load data from files
 file_archive <- get_file()
+```
+
+```{r storm}
 if(!exists('storm')){
-    storm <- read.csv(file.path('data', file_archive), sep = ',', stringsAsFactors = FALSE, na.strings = c('', 'NA'))
+    tr <- c(H = '2', h = '2', K = '3', M = '6', m = '6', B = '9', '+' = '1', '-' = '-1', '?' = NA, '0' = '0', '1' = '1', '2' = '2', '3' = '3', '4' = '4', '5' = '5', '6' = '6', '7' = '7', '8' = '8')
+    exp_value <- function(val, exp) val * 10^as.numeric(tr[exp])
+
+    #storm <- within(
+    #    read.csv(file.path('data', file_archive), sep = ',', stringsAsFactors = FALSE, na.strings = c('', 'NA')), {
+    #    # create begin and end date type and years
+    #    BGN_DATETIME <- strptime(paste(gsub('([0-9/]+).+', '\\1', BGN_DATE), BGN_TIME, TIME_ZONE), format = '%m/%d/%Y %H%M')
+    #    BGN_YEAR <- as.numeric(format(BGN_DATETIME, '%Y'))
+    #    END_DATETIME <- strptime(paste(gsub('([0-9/]+).+', '\\1', END_DATE), END_TIME, TIME_ZONE), format = '%m/%d/%Y %H%M')
+    #    END_YEAR <- as.numeric(format(END_DATETIME, '%Y'))
+    #    # get the cost on the same scale
+    #    PROP <- mapply(exp_value, PROPDMG, PROPDMGEXP)
+    #    CROP <- mapply(exp_value, CROPDMG, CROPDMGEXP)
+    #})
+    get_year <- function(date, time, time_zone) as.numeric(format(strptime(paste(gsub('([0-9/]+).+', '\\1', date), time, time_zone), format = '%m/%d/%Y %H%M'), '%Y'))
+    storm <- transform(
+        read.csv(file.path('data', file_archive), sep = ',', stringsAsFactors = FALSE, na.strings = c('', 'NA')),
+        # create begin and end date type and years
+        BGN_YEAR = get_year(BGN_DATE, BGN_TIME, TIME_ZONE),
+        END_YEAR = get_year(END_DATE, END_TIME, TIME_ZONE),
+        # get the cost on the same scale
+        PROP = mapply(exp_value, PROPDMG, PROPDMGEXP),
+        CROP = mapply(exp_value, CROPDMG, CROPDMGEXP)
+    )
     # change the 'COUNTYNAME', 'STATE', 'STATEOFFIC', 'EVTYPE', 'ZONENAMES', 'WFO', 'BGN_LOCATI', and 'END_LOCATI' column type to factor
-    for(col in c('COUNTYNAME', 'STATE', 'STATEOFFIC', 'EVTYPE', 'ZONENAMES', 'WFO', 'BGN_LOCATI', 'END_LOCATI')) storm[, col] <- as.factor(storm[, col])
-    # create begin and end date type and years
-    storm$BGN_DATETIME <- strptime(paste(gsub('([0-9/]+).+', '\\1', storm$BGN_DATE), storm$BGN_TIME, storm$TIME_ZONE), format = '%m/%d/%Y %H%M')
-    storm$BGN_YEAR <- as.numeric(format(storm$BGN_DATETIME, '%Y'))
-    storm$END_DATETIME <- strptime(paste(gsub('([0-9/]+).+', '\\1', storm$END_DATE), storm$END_TIME, storm$TIME_ZONE), format = '%m/%d/%Y %H%M')
-    storm$END_YEAR <- as.numeric(format(storm$END_DATETIME, '%Y'))
+    cols <- c('COUNTYNAME', 'STATE', 'STATEOFFIC', 'EVTYPE', 'ZONENAMES', 'WFO', 'BGN_LOCATI', 'END_LOCATI')
+    storm[, cols] <- lapply(storm[, cols, drop = FALSE], as.factor)
 }
 ```
 
@@ -119,13 +141,6 @@ head(injuries, 10)
 For this analysis we're going to pay particularly attention to **property** (**PROPDMG**) and **crop** (**CROPDMG**) damages.
 
 We need to consider the factor which need to be applied on the values (National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf))
-
-```{r prop_crop}
-# get the cost on the same scale
-tr <- c(H = '2', h = '2', K = '3', M = '6', m = '6', B = '9', '+' = '1', '-' = '-1', '?' = NA, '0' = '0', '1' = '1', '2' = '2', '3' = '3', '4' = '4', '5' = '5', '6' = '6', '7' = '7', '8' = '8')
-if(!'PROP' %in% names(storm)) storm$PROP <- with(storm, PROPDMG * 10^as.numeric(tr[PROPDMGEXP]))
-if(!'CROP' %in% names(storm)) storm$CROP <- with(storm, CROPDMG * 10^as.numeric(tr[CROPDMGEXP]))
-```
 
 To do so we'll have a look at the total numbers of  **property** and **crop** damages per event types.
 
