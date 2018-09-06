@@ -1,0 +1,75 @@
+---
+title: 'Statistical Inference: Peer Assessment 1'
+subtitle: "Exponential distribution"
+author: "Eddy Delta"
+date: "01/09/2018"
+output: pdf_document
+keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Simulation Exercise Instructions
+
+```{r parameters}
+set.seed(9)
+lambda <- 0.2
+sample_count <- 40
+simulation_count <- 1000
+```
+
+The goal of this project is to investigate the exponential distribution in R and compare it with the Central Limit Theorem. The exponential distribution can be simulated in R with `rexp(n, lambda)` where **lambda** is the rate parameter. The *mean* of exponential distribution is $1 / lambda$ and the *standard deviation* is also $1 / lambda$. $lambda = `r lambda`$ is set for all of the simulations. The distribution of averages of `r sample_count` exponentials will be analysed within a set of `r simulation_count` simulations.
+
+# Sample mean and compared to the theoretical mean of the distribution
+
+The first step is to create a dataset containing `r simulation_count` of `r sample_count` numbers generated randomly by the `rexp(n, lambda)` function.
+This data set is stored in a `r simulation_count` x `r sample_count` `matrix`.
+Out of this dataset a vector containing the `mean` of each simulation will be generated.
+
+```{r data}
+simulations <- matrix(
+    rexp(simulation_count * sample_count, rate = lambda),
+    simulation_count,
+    sample_count)
+simulations_means <- apply(simulations, 1, mean)
+simulations_mean <- mean(simulations_means)
+```
+
+The exponentials are distributed as follow
+
+```{r exponential_plot}
+# histogram of the means
+hist(simulations_means, breaks = 50, prob = TRUE,
+     main = 'Distribution of the means of the samples',
+     xlab = 'Mean')
+# density of the simulations means
+lines(density(simulations_means), col = 'blue')
+# center of the simulated distribution
+abline(v = simulations_mean, col = 'blue')
+# center of theoretical distribution
+abline(v = 1 / lambda, col = 'red')
+# theoretical density of the means of samples
+x <- seq(min(simulations_means), max(simulations_means), length = 100)
+y <- dnorm(x, mean = 1 / lambda, sd = (1 / (lambda * sqrt(sample_count))))
+lines(x, y, pch = 22, col = 'red', lty = 2)
+legend('topright', c("simulation", "theoretical"), lty = c(1, 2), col = c('blue', 'red'))
+```
+
+The distribution of the sample means is centered around `r round(simulations_mean, 3)` which is quite close to theoretical center of the mean distribution `r round(1 / lambda, 3)` given by $1 / lambda$.
+
+The distribution of the sample means also have a *variance* of `r round(var(simulations_means), 3)` which isn't far from the theoretical *variance* of $\frac{\sigma ^ 2}{n} = \frac{1 / lambda ^ 2}{n} = \frac{1}{lambda ^ 2 \times n} = \frac{1}{`r lambda` ^ 2 \times `r sample_count`}$ = `r round(1 / ((lambda^2) * sample_count), 3)`
+
+In accordance with the Central Limit Theorem the distribution of the sample means follow the normal distribution. We can observe in the histogram above the convergence of the samples means distribution to the normal distribution.
+
+# Confidence interval
+$H_{0} : \mu \ne \bar{X}$ is defined as our null hypothesis and $H_{A} : \mu = \bar{X}$ our Alternative hypothesis.
+
+The 95% confidence interval for the sample distribution is given by $\mu = \bar{X} \pm Z_{0.95} \times \frac{S}{\sqrt{n}} = `r round(simulations_mean, 3)` \pm `r round(qnorm(.975), 3)` \times \frac{`r round(sd(simulations_means), 3)`}{`r round(sqrt(simulation_count), 3)`}$ which gives a value between `r round(simulations_mean + qnorm(.025) * sd(simulations_means) / sqrt(simulation_count), 3)` and `r round(simulations_mean + qnorm(.975) * sd(simulations_means) / sqrt(simulation_count), 3)`
+
+The average of samples means falls inside our confidence interval 95% of the time, so the $H_{0}$ can be rejected.
+
+# Conclusion
+
+The means distributions of `r sample_count` randomly observed exponentials simulated `r simulation_count` times of is quite close to distribution of the means of the theoratical exponential distribution.
