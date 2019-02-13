@@ -12,10 +12,6 @@ subtitle: Weight Lifting Exercises Dataset
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(doParallel)
-registerDoParallel(cores = detectCores() - 1)
-getDoParWorkers()
-# setwd('~/projects/training/datascience/machine_learning/wle')
 ```
 
 # Introduction
@@ -41,19 +37,27 @@ The participants were asked to perform one set of 10 repetitions of the Unilater
 
 # Exploratory data analysis
 ```{r original_data, include=FALSE}
+# setwd('~/projects/training/datascience/machine_learning/wle')
+# https://htmlpreview.github.io/?https://github.com/ome9ax/datascience/blob/master/machine_learning/wle/wle.html
+library(doParallel)
+registerDoParallel(cores = detectCores() - 1)
+getDoParWorkers()
 # Quick look at the original dataset
 # x <- read.csv2(unz(file.path('machine_learning', 'har', 'data', 'dataset-har-PUC-Rio-ugulino.zip'), file.path('dataset-har-PUC-Rio-ugulino.csv')), sep = ';')
 # x <- load_data('http://groupware.les.inf.puc-rio.br/static/WLE/WearableComputing_weight_lifting_exercises_biceps_curl_variations.csv')
 ```
 
 ```{r load_data, cache = TRUE}
-load_data <- function(file_url, data_dir = 'data'){
-    if(!dir.exists(data_dir)) dir.create(data_dir)
-    file_path <- file.path(data_dir, basename(file_url))
-    if(!file.exists(file_path)) download.file(file_url, file_path, quiet = TRUE)
-    if(!file.exists(file_path)) stop('Unable to download file ', file_url)
-    # clean the dummy values like '', 'NA', '#DIV/0!'
-    read.csv(file_path, na.strings = c('', 'NA', '#DIV/0!'))
+load_data <- function(file_url, data_dir = 'data', cache = FALSE){
+    if(cache){
+        if(!dir.exists(data_dir)) dir.create(data_dir)
+        file_path <- file.path(data_dir, basename(file_url))
+        if(!file.exists(file_path)) download.file(file_url, file_path, quiet = TRUE)
+        if(!file.exists(file_path)) stop('Unable to download file ', file_url)
+        # clean the dummy values like '', 'NA', '#DIV/0!'
+        read.csv(file_path, na.strings = c('', 'NA', '#DIV/0!'))
+        # load the data model from the url
+    } else read.csv(url(file_url), na.strings = c('', 'NA', '#DIV/0!'))
     # NOTE : if new / transformed columns are needed
     # transform(
     #     read.csv(file_path, na.strings = c('', 'NA', '#DIV/0!')),
@@ -98,7 +102,8 @@ tidy_data <- function(raw_data, treshold = 0.95){
     tidy_predictor <- raw_data[, setdiff(grep('num_window|belt|forearm|arm|dumbbell|classe', names(raw_data)), nearZeroVar(raw_data))]
     # NOTE : keep column if NA ratio < 0.95
     ceil <- nrow(tidy_predictor) * treshold
-    tidy_predictor[, sapply(tidy_predictor, function(x) sum(is.na(x)) < ceil)]
+    # tidy_predictor[, sapply(tidy_predictor, function(x) sum(is.na(x)) < ceil)]
+    tidy_predictor[, colSums(is.na(tidy_predictor)) < ceil]
 }
 
 tidy_training  <- tidy_data(pml_training)
@@ -115,56 +120,58 @@ The training dataset have been splited in half, one part for each training type.
 
 ```{r building_data}
 inBuild <- createFolds(y = tidy_training$classe, k = 2)
-buildRf <- tidy_training[inBuild[[1]], ]
-buildRpart <- tidy_training[-inBuild[[2]], ]
+training <- tidy_training[inBuild[[1]], ]
+validation <- tidy_training[-inBuild[[2]], ]
 
-inTrainRf <- createDataPartition(y = buildRf$classe, p = 0.7, list = F)
-trainingRf <- buildRf[inTrainRf, ]
-validationRf <- buildRf[-inTrainRf, ]
-
-inTrainRpart <- createDataPartition(y = buildRpart$classe, p = 0.7, list = F)
-trainingRpart <- buildRpart[inTrainRpart, ]
-validationRpart <- buildRpart[-inTrainRpart, ]
-rm(inBuild, buildRf, inTrainRf, buildRpart, inTrainRpart)
-
-dim(trainingRf)
-dim(validationRf)
-dim(trainingRpart)
-dim(validationRpart)
+dim(training)
+dim(validation)
 ```
 
 # Analysis
 ## Random Forest
 I'll first start with the random forest as it usually provides more accurate predictions with a cost of more computation power.
+
+Random forests or random decision forests are an ensemble learning method for classification, regression and other tasks that operates by constructing a multitude of decision trees at training time and outputting the class that is the mode of the classes (classification) or mean prediction (regression) of the individual trees. Random decision forests correct for decision trees' habit of overfitting to their training set.
 ```{r random_forest, cache = TRUE}
 library(ggplot2)
 library(randomForest)
-modRf <- train(classe ~ ., data = trainingRf, method = 'rf', prox = T)
+# library(beepr)
+modRf <- train(classe ~ ., data = training, method = 'rf', prox = TRUE, trControl = trainControl(method = 'cv', number = 10, allowParallel = TRUE, verboseIter = FALSE))
+# No k-mean cross validation, Bootstrap resampling method 1 resampling iteration
+# Optimal setting, but overkill in the present case
+# modRf <- train(classe ~ ., data = training, method = 'rf', prox = TRUE, trControl = trainControl(method = 'boot', number = 1, allowParallel = TRUE))
+# beep()
 modRf
+# modRf$resample
 varImp(modRf)
-predRf <- predict(modRf, validationRf)
-cmRf <- confusionMatrix(predRf, validationRf$classe)
+confusionMatrix.train(modRf)
+predRf <- predict(modRf, validation)
+cmRf <- confusionMatrix(predRf, validation$classe)
 cmRf
+# Print out model summary
+# print(modRf$finalModel, digits=3)
 ```
 As expected the Random forest prediction accuracy (`r round(cmRf$overall[[1]], 5)`) is very high, which makes the outcome quite reliable.
 
 ## Decision tree
+Decision tree learning uses a decision tree (as a predictive model) to go from observations about an item (represented in the branches) to conclusions about the item's target value (represented in the leaves).
+
 The second prediction model used to predict the classes is a Regression tree. It worth noting that the default setting for the `caret` package is quite weak with this data set. The `rpart` function default parameters provide a better prediction. This prediction can be reach by tweaking the caret params though.
 
 ```{r rpart, cache = TRUE}
 library(rpart)
 # NOTE : this result can also be obtain using
-# modRpart <- rpart(classe ~ ., data = trainingRpart, method = 'class')
-# predRpart <- predict(modRpart, validationRpart, type = 'class')
+# modRpart <- rpart(classe ~ ., data = training, method = 'class')
+# predRpart <- predict(modRpart, validation, type = 'class')
 # Here to get more accute outcome trainControl need to be disabled and cp set to 0.01
 # It's a case where caret default optimisation are actually performing worst than rpart basic setup
-modRpart <- train(classe ~ ., method = 'rpart', data = trainingRpart, trControl = trainControl(method = 'none'), tuneGrid = data.frame(cp = 0.01))
+modRpart <- train(classe ~ ., method = 'rpart', data = training, trControl = trainControl(method = 'none', allowParallel = TRUE, verboseIter = FALSE), tuneGrid = data.frame(cp = 0.0001))
 modRpart
-predRpart <- predict(modRpart, validationRpart)
-cmRpart <- confusionMatrix(predRpart, validationRpart$classe)
+predRpart <- predict(modRpart, validation)
+cmRpart <- confusionMatrix(predRpart, validation$classe)
 cmRpart
 ```
-The Decision tree prediction accuracy (`r round(cmRpart$overall[[1]], 5)`) is much weaker than the Random forest prediction, even if it performs above the average.
+The Decision tree prediction accuracy (`r round(cmRpart$overall[[1]], 5)`) is weaker than the Random forest prediction, even if it performs above the average.
 
 ```{r fancyrpart, echo=FALSE}
 library(rattle)
@@ -187,8 +194,7 @@ dim(testing)
 testingRf <- predict(modRf, testing)
 testingRf
 testingRpartPred <- predict(modRpart$finalModel, testing)
-testingRpart <- colnames(testingRpartPred)[apply(testingRpartPred, 1, function(x) which.max(x))]
-levels(testingRpart) <- colnames(testingRpartPred)
+testingRpart <- factor(colnames(testingRpartPred)[apply(testingRpartPred, 1, function(x) which.max(x))])
 testingRpart
 table(testingRpart, testingRf)
 ```
