@@ -3,10 +3,10 @@ title: "Human Activity Recognition"
 author: "Eddy Delta"
 date: "05/02/2019"
 output: 
+  pdf_document: default
+  html_document: default
   md_document:
     variant: markdown_github
-  html_document: default
-  pdf_document: default
 subtitle: Weight Lifting Exercises Dataset
 ---
 
@@ -39,7 +39,7 @@ The participants were asked to perform one set of 10 repetitions of the Unilater
 ```{r original_data, include=FALSE}
 # setwd('~/projects/training/datascience/machine_learning/wle')
 # https://htmlpreview.github.io/?https://github.com/ome9ax/datascience/blob/master/machine_learning/wle/wle.html
-required.packages <- c('doParallel', 'caret', 'ggplot2', 'randomForest', 'rpart', 'rattle') # 'beepr', 'pgmm'
+required.packages <- c('doParallel', 'caret', 'ggplot2', 'randomForest', 'rpart', 'rattle', 'nnet') # 'beepr', 'pgmm'
 missing.packages <- setdiff(required.packages, rownames(installed.packages()))
 if (length(missing.packages) > 0) install.packages(missing.packages)
 sapply(required.packages, require, character.only = TRUE)
@@ -135,6 +135,20 @@ dim(validation)
 ```
 
 # Analysis
+## Multinomial Logistic Regression
+The 1st way to calculate an estimate will be using a statistical method. The most common to predict unordered categorical variable is the Multinomial logistic regression.
+
+In statistics, multinomial logistic regression is a classification method that generalizes logistic regression to multiclass problems, i.e. with more than two possible discrete outcomes. That is, it is a model that is used to predict the probabilities of the different possible outcomes of a categorically distributed dependent variable, given a set of independent variables (which may be real-valued, binary-valued, categorical-valued, etc.).
+
+```{r mlr, cache = TRUE}
+modMlr <- multinom(classe ~ ., data = training)
+modMlr
+predMlr <- predict(modMlr, validation)
+cmMlr <- confusionMatrix(predMlr, validation$classe)
+cmMlr
+```
+The Multinomial Logistic Regression prediction accuracy (`r round(cmMlr$overall[[1]], 5)`) is above the average which is good, but isn't very reliable.
+
 ## Random Forest
 I'll first start with the random forest as it usually provides more accurate predictions with a cost of more computation power.
 
@@ -186,6 +200,21 @@ The Decision tree prediction accuracy (`r round(cmRpart$overall[[1]], 5)`) is we
 fancyRpartPlot(modRpart$finalModel)
 ```
 
+## Gradient Boosting Model
+Gradient boosting is a machine learning technique for regression and classification problems, which produces a prediction model in the form of an ensemble of weak prediction models, typically decision trees. It builds the model in a stage-wise fashion like other boosting methods do, and it generalizes them by allowing optimization of an arbitrary differentiable loss function.
+
+It shall be interesting to produce a prediction algorithm trainned using a Gradient Boosting model.
+
+```{r gbm, cache = TRUE}
+modGbm <- train(classe ~ ., method = 'gbm', data = training, trControl = trainControl(method = 'cv', number = 10, allowParallel = TRUE, verboseIter = FALSE), verbose = FALSE)
+modGbm
+confusionMatrix.train(modGbm)
+predGbm <- predict(modGbm, validation)
+cmGbm <- confusionMatrix(predGbm, validation$classe)
+cmGbm
+```
+The Gradient Boosting Model, generate better prediction (accuracy `r round(cmGbm$overall[[1]], 5)`) than the decision tree.
+
 # Test cases predictions
 The trained machine learning algorithm generated above are now used to predict 20 test cases.
 
@@ -201,19 +230,29 @@ testing <- testing[, intersect(names(testing), names(tidy_training))]
 dim(testing)
 testingRf <- predict(modRf, testing)
 testingRf
+testingMlr <- predict(modMlr, testing)
+testingMlr
+table(testingRf, testingMlr)
 testingRpartPred <- predict(modRpart$finalModel, testing)
 testingRpart <- factor(colnames(testingRpartPred)[apply(testingRpartPred, 1, function(x) which.max(x))])
 testingRpart
-table(testingRpart, testingRf)
+table(testingRf, testingRpart)
+testingGbm <- predict(modGbm, testing)
+testingGbm
+table(testingRf, testingGbm)
 ```
 ```{r data_sample, echo = FALSE}
 # library(pgmm)
 # stargazer::stargazer(table(testingRpart, testingRf), title = 'Testing Comparison', type = 'html')
 ```
-There is a `r sum(testingRpart == testingRf) * 100 / nrow(testing)`% of prediction matching between the 2 models.
+There is a `r sum(testingRf == testingMlr) * 100 / nrow(testing)`% of prediction matching between the Random Forest model and the Multinomial Logistic Regression model.
+
+There is a `r sum(testingRf == testingRpart) * 100 / nrow(testing)`% of prediction matching between the Random Forest model and the Decision Tree model.
+
+There is a `r sum(testingRf == testingGbm) * 100 / nrow(testing)`% of prediction matching between the Random Forest model and the Gradient Boosting model.
 
 # Conclusion
-The Random Forest prediction model is a clear winner to predict the excercice `classe` out of the available predictors.
+The Random Forest prediction model is a fair winner to predict the excercice `classe` out of the available predictors, although the Gradient Boosting Model generate the same prediction on the use cases test.
 
 The Random forest prediction is very sensitive to the settings parameters used to train the algorithm. It produce a decent prediction though, but not good enough to par with the Random forest predictions.
 
