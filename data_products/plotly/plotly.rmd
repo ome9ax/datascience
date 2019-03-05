@@ -1,0 +1,27 @@
+---
+title: 'Peer-graded Assignment:'
+subtitle: 'R Markdown Presentation & Plot created with Plotly'
+author: 'Eddy ∆'
+date: '03/03/2019'
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+```{r, message = FALSE, include = FALSE}
+required.packages <- c('plotly')
+missing.packages <- setdiff(required.packages, rownames(installed.packages()))
+if (length(missing.packages)) install.packages(missing.packages)
+sapply(required.packages, require, character.only = TRUE)
+```
+
+## March 3rd, 2019 : mtcars
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+plot_ly(mtcars, x = ~wt, y = ~mpg, mode = 'markers', color = ~factor(cyl), size = ~hp)
+```
+
+## March 3rd, 2019 : diamonds
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+plot_ly(diamonds, x = ~carat, y = ~price, color = ~clarity)
+```
