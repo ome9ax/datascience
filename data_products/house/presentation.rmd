@@ -67,6 +67,8 @@ The dataset contains `r nrow(raw_house)` rows and `r ncol(raw_house)` variables 
 
 Those data have been split in order to train a machine and perform predictions based on the user's inputs.
 
+NOTE : Very slow on the 1st load due to the amount of data. 16000 lines need to be processed by the ML training.
+
 ## Average price per zipcode (data exploration)
 
 The main panel and default tab is a **leaflet** interactive map, all the individuals transactions grouped by cluster function on the density displayed in the map. The value in the cluster in the count of the transactions.

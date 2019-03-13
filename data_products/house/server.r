@@ -42,8 +42,8 @@ load_data <- function(file_url, data_dir = 'data', cache = FALSE){
 }
 
 raw_house <- load_data('kc_house_data.csv.xz', './data')
-# house <- raw_house[sample(nrow(raw_house), 9999), -nearZeroVar(raw_house)]
-house <- raw_house[, -nearZeroVar(raw_house)]
+house <- raw_house[sample(nrow(raw_house), 8000), -nearZeroVar(raw_house)]
+# house <- raw_house[, -nearZeroVar(raw_house)]
 
 price.mean <- function(dataset) within(
   cbind(
@@ -212,7 +212,7 @@ shinyServer(function(input, output, session) {
   output$distPrice <- renderPlot({
     # generate bins based on input$bins from ui.R
     price    <- house.react()$price
-    bins <- seq(min(price), max(price), length.out = ifelse(length(price) > 30, 30, length(x)))
+    bins <- seq(min(price), max(price), length.out = ifelse(length(price) > 30, 30, length(price)))
 
     # draw the histogram with the specified number of bins
     hist(price, breaks = bins, col = 'darkgray', border = 'white', xlab = 'Price')

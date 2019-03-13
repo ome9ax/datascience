@@ -11,52 +11,61 @@ library(shiny)
 library(leaflet)
 
 # Define UI for application that draws a histogram
-ui <- fluidPage(
-
-  # Application title
-  titlePanel('Predict house price'),
-
-  # Sidebar with a slider input for number of bins
-  sidebarLayout(
+ui <- navbarPage('Predict house sales', id = 'nav',
+  tabPanel('Average prices/zipcode',
+    # div(class = 'outer',
+    #     tags$head(
+    #       includeCSS('styles.css')
+    #       # includeScript('gomap.js')
+    #     ),
     sidebarPanel(
+
+      h2('Map explorer'),
+      h4('Filter'),
       htmlOutput('price'),
+      # h5('House count:'),
+      # textOutput('house.count'),
+      # NOTE : manually trigger the calculation if too slow
+      # submitButton('Execute')
+      plotOutput('distPrice', height = '250px'),
+      h6('NOTE : the circle radius is the count of sales, and the color the average prices, both per zipcode.'),
+      h6('INFO : Available calculation units :'),
+      textOutput('workers')
+      # NOTE : manually trigger the calculation if too slow
+      # submitButton('Execute')
+    ),
+    mainPanel(leafletOutput('map'))
+    #     tags$div(id = 'cite',
+    #              'Data compiled for ',
+    #              tags$em('House Sales in  King County, Washington State, USA, 2014–2015'),
+    #              ' from ',
+    #              a('Kaggle', href = 'https://www.kaggle.com/harlfoxem/housesalesprediction')
+    #     )
+    # )
+  ),
+  tabPanel('Predictions',
+    sidebarPanel(
+      h4('Prediction parameters'),
       htmlOutput('zipcode'),
       htmlOutput('grade'),
       htmlOutput('condition'),
       htmlOutput('sqft_lot'),
       htmlOutput('bedrooms'),
       htmlOutput('week')
-      # h5('House count:'),
-      # textOutput('house.count'),
-      # NOTE : manually trigger the calculation if too slow
-      # submitButton('Execute')
     ),
-
-    # Show a plot of the generated distribution
     mainPanel(
-      tabsetPanel(# type = 'pills',
-        tabPanel(h4('Average prices/zipcode'),# br(),
-                 leafletOutput('map'),
-                 h6('NOTE : the circle radius is the count of sales, and the color the average prices, both per zipcode.'),
-                 plotOutput('distPrice', height = '250px'),
-                 h6('INFO : Available calculation units :'),
-                 textOutput('workers')
-        ),
-        tabPanel(h4('Predictions'),# br(),0
-                 h5('Multiple predictors linear model price prediction: '),
-                 textOutput('price.predLm'),
-                 h5('GBM boost with tress ML model price prediction: '),
-                 textOutput('price.predGbm'),
-                 plotOutput('predPlot', brush = brushOpts(id = 'brush.subset')),
-                 h6('NOTE : brush the chart with your pointer to subset the displayed aggregates')
-        )
-      )
+      h4('Multiple predictors linear model price prediction: '),
+      textOutput('price.predLm'),
+      h4('GBM boost with tress ML model price prediction: '),
+      textOutput('price.predGbm'),
+      plotOutput('predPlot', brush = brushOpts(id = 'brush.subset')),
+      h6('NOTE : brush the chart with your screen pointer to subset the displayed aggregates')
     )
   )
 )
 
 # Better design but too slow. Need to be optimized
-ui.dev <- navbarPage('Predict house price', id = 'nav',
+ui.dev <- navbarPage('Predict house sales', id = 'nav',
                      tabPanel('Average prices/zipcode',
                               div(class = 'outer',
                                   tags$head(
