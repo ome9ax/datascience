@@ -29,6 +29,8 @@ ui <- navbarPage('Predict house sales', id = 'nav',
       # submitButton('Execute')
       plotOutput('distPrice', height = '250px'),
       h6('NOTE : the circle radius is the count of sales, and the color the average prices, both per zipcode.'),
+      h6('The individal sale transactions are grouped by cluster with the count of transactions in each cluster.'),
+      h6('Because of the platform memory limitation, the app run on a data sample of 5000 transactions.'),
       h6('INFO : Available calculation units :'),
       textOutput('workers')
       # NOTE : manually trigger the calculation if too slow
@@ -86,6 +88,8 @@ ui.dev <- navbarPage('Predict house sales', id = 'nav',
                                                 # submitButton('Execute')
                                                 plotOutput('distPrice', height = '250px'),
                                                 h6('NOTE : the circle radius is the count of sales, and the color the average prices, both per zipcode.'),
+                                                h6('The individal sale transactions are grouped by cluster with the count of transactions in each cluster.'),
+                                                h6('Because of the platform memory limitation, the app run on a data sample of 5000 transactions.'),
                                                 h6('INFO : Available calculation units :'),
                                                 textOutput('workers')
                                                 # NOTE : manually trigger the calculation if too slow

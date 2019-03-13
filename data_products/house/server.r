@@ -42,7 +42,7 @@ load_data <- function(file_url, data_dir = 'data', cache = FALSE){
 }
 
 raw_house <- load_data('kc_house_data.csv.xz', './data')
-house <- raw_house[sample(nrow(raw_house), 8000), -nearZeroVar(raw_house)]
+house <- raw_house[sample(nrow(raw_house), 5000), -nearZeroVar(raw_house)]
 # house <- raw_house[, -nearZeroVar(raw_house)]
 
 price.mean <- function(dataset) within(
@@ -230,7 +230,7 @@ shinyServer(function(input, output, session) {
       addTiles(options = tileOptions(detectRetina = TRUE)) %>%
       addMarkers(popup = paste0('$', house.subset$price), clusterOptions = markerClusterOptions(), options = markerOptions()) %>%
       # addCircleMarkers(radius = 10 * house$price.rescale, color = house$price.color, opacity = 0.5, fillOpacity = 0.5)
-      addCircles(lat = price.mean.subset$lat, lng = price.mean.subset$long, weight = 3, radius = price.mean.subset$count * 5, color = price.mean.subset$price.color, opacity = 0.5, fillOpacity = 0.5) %>%
+      addCircles(lat = price.mean.subset$lat, lng = price.mean.subset$long, weight = 3, radius = price.mean.subset$count * 20, color = price.mean.subset$price.color, opacity = 0.5, fillOpacity = 0.5) %>%
       addLegend(title = 'Mean price', labels = seq(max(house$price), min(house$price), len = 9), colors = colorRampPalette(c('#DB4A46', '#F0AD4E', '#59BB59'))(9), position = 'bottomright')
   })
 
