@@ -29,6 +29,7 @@ registerDoParallel(cores = detectCores() - 1)
 getDoParWorkers()
 # http://rpubs.com/ome9ax/475682
 # https://omegax.shinyapps.io/house
+# https://github.com/ome9ax/datascience/tree/master/data_products/house
 ```
 
 ## Project goal
@@ -111,6 +112,12 @@ modGbm <- train(price ~ zipcode + grade + condition + sqft_lot + bedrooms + week
                 data = training, method = 'gbm', trControl = trControl, verbose = F)
 predGbm <- predict(modGbm, validation)
 accGbm <- accuracy(predGbm, validation$price)
+```
+
+## Model details
+
+```{r}
+modGbm
 ```
 
 ## Price predictions
