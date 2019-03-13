@@ -150,6 +150,8 @@ shinyServer(function(input, output, session) {
 
   output$workers <- renderText({ getDoParWorkers() })
 
+  output$modLmStep <- renderPrint({ print(summary(modLmStep)) })
+
   output$price <- renderUI({
     sliderInput('price',
                 'Subset by price:',

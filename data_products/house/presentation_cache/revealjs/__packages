@@ -1,0 +1,11 @@
+base
+foreach
+iterators
+doParallel
+ggplot2
+lattice
+caret
+MASS
+forecast
+GGally
+arrow

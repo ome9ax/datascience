@@ -56,12 +56,14 @@ ui <- navbarPage('Predict house sales', id = 'nav',
       htmlOutput('week')
     ),
     mainPanel(
-      h4('Multiple predictors linear model price prediction: '),
+      h4('Multiple predictors linear model price prediction:'),
       textOutput('price.predLm'),
-      h4('GBM boost with tress ML model price prediction: '),
+      h4('GBM boost with tress ML model price prediction:'),
       textOutput('price.predGbm'),
       plotOutput('predPlot', brush = brushOpts(id = 'brush.subset')),
-      h6('NOTE : brush the chart with your screen pointer to subset the displayed aggregates')
+      h6('NOTE : brush the chart with your screen pointer to subset the displayed aggregates'),
+      h4('Multiple predictors linear model summary:'),
+      verbatimTextOutput('modLmStep')
     )
   )
 )
@@ -119,7 +121,9 @@ ui.dev <- navbarPage('Predict house sales', id = 'nav',
                                 h4('GBM boost with tress ML model price prediction: '),
                                 textOutput('price.predGbm'),
                                 plotOutput('predPlot', brush = brushOpts(id = 'brush.subset')),
-                                h6('NOTE : brush the chart with your screen pointer to subset the displayed aggregates')
+                                h6('NOTE : brush the chart with your screen pointer to subset the displayed aggregates'),
+                                h4('Multiple predictors linear model summary:'),
+                                verbatimTextOutput('modLmStep')
                               )
                      )
 )

@@ -3,14 +3,18 @@ title: 'Developing Data Products: Predict house price'
 subtitle: 'Peer-graded Assignment - Course Project: Shiny Application and Reproducible Pitch'
 author: 'Eddy ∆'
 date: '09/03/2019'
-# output: slidy_presentation
-output: ioslides_presentation
+output:
+  ioslides_presentation:
+    widescreen: true
+    smaller: true
+    fig_width: 9
+    fig_height: 4
+    fig_caption: true
+# output:
+#   revealjs::revealjs_presentation:
+#     theme: league
 ---
-<style>
-pre {
-  font-size: 15px;
-}
-</style>
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 ```
@@ -43,8 +47,6 @@ This **peer assessed assignment** has two parts.
 - First, a Shiny application and deployed on Rstudio's servers.
 - Second, and second the present reproducible pitch presentation about my application.
 
-## Slide with Bullets
-
 ```{r load_data, cache = TRUE}
 load_data <- function(file_url, data_dir = 'data', cache = FALSE){
   file_path <- file.path(data_dir, basename(file_url))
@@ -60,14 +62,29 @@ load_data <- function(file_url, data_dir = 'data', cache = FALSE){
 }
 
 raw_house <- load_data('kc_house_data.csv.xz', 'data')
-names(raw_house)
 ```
+```{r, echo = TRUE}
+head(raw_house, 2)
+```
+
+## Slide with Bullets
 
 The dataset contains `r nrow(raw_house)` rows and `r ncol(raw_house)` variables taken over a year.
 
-Those data have been split in order to train a machine and perform predictions based on the user's inputs.
+NOTE : Very slow on the 1st load due to the amount of data. 5000 lines need to be processed by the ML training.
 
-NOTE : Very slow on the 1st load due to the amount of data. 16000 lines need to be processed by the ML training.
+```{r model, echo = TRUE, cache = TRUE}
+set.seed(99)
+house <- raw_house[, -nearZeroVar(raw_house)]
+dataPartitions <- createDataPartition(y = house$price, p = 0.7, list = F)
+training <- house[dataPartitions, ]
+validation <- house[-dataPartitions, ]
+trControl <- trainControl(method = 'repeatedcv', number = 8, repeats = 3, allowParallel = TRUE, verboseIter = FALSE)
+modGbm <- train(price ~ zipcode + grade + condition + sqft_lot + bedrooms + week,
+                data = training, method = 'gbm', trControl = trControl, verbose = F)
+predGbm <- predict(modGbm, validation)
+accGbm <- accuracy(predGbm, validation$price)
+```
 
 ## Average price per zipcode (data exploration)
 
@@ -82,51 +99,11 @@ The circles show the aggregated data per zipcode.
 - the `radius` of the circle is the count of houses
 - the `colour` of the circle is the average **price** for the `zipcode` area.
 
-## Prediction
+## Price Prediction
 
 The user can then enter the prediction tab where the predicted and validation dataset prices are displayed per zipcode.
 
-The user get a price estimate based on the following predictors :
-
-- the area `zipcode`
-- overall `grade` given to the housing unit, based on King County grading system
-- How good the `condition` is ( Overall )
-- `sqft_lot` the square footage of the lot
-- Number of `bedrooms` / House
-- `week` number in the year
-
-NOTE : brush the chart with your screen pointer to subset the displayed aggregates
-
-# Annexes
-## Prediction models
-```{r model, echo = TRUE, cache = TRUE}
-set.seed(99)
-
-names(raw_house)[nearZeroVar(raw_house)]
-house <- raw_house[, -nearZeroVar(raw_house)]
-
-dataPartitions <- createDataPartition(y = house$price, p = 0.7, list = F)
-training <- house[dataPartitions, ]
-validation <- house[-dataPartitions, ]
-
-trControl <- trainControl(method = 'repeatedcv', number = 8, repeats = 3, allowParallel = TRUE, verboseIter = FALSE)
-modGbm <- train(price ~ zipcode + grade + condition + sqft_lot + bedrooms + week,
-                data = training, method = 'gbm', trControl = trControl, verbose = F)
-predGbm <- predict(modGbm, validation)
-accGbm <- accuracy(predGbm, validation$price)
-```
-
-## Model details
-
-```{r}
-modGbm
-```
-
-## Price predictions
-
-```{r price}
-hist(validation$price, breaks = 90, freq = FALSE, col = 'darkgray', border = 'white'
-     , xlab = 'Price', main = 'Price predictions')
+```{r price, echo = TRUE}
+hist(validation$price, breaks = 90, freq = FALSE, col = 'darkgray', border = 'white', xlab = 'Price', main = '')
 lines(density(predGbm, adjust = 4), lty="dotted", col="darkgreen", lwd=2)
 ```
-
