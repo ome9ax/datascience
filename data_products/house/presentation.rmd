@@ -1,15 +1,16 @@
 ---
-title: 'Developing Data Products: Predict house price'
-subtitle: 'Peer-graded Assignment - Course Project: Shiny Application and Reproducible Pitch'
+title: 'Developing Data Products:<br />Predict house price'
+subtitle: 'Peer-graded Assignment - Course Project:<br />Shiny Application and Reproducible Pitch'
 author: 'Eddy ∆'
 date: '09/03/2019'
 output:
   ioslides_presentation:
     widescreen: true
-    smaller: true
+    # smaller: true
     fig_width: 9
     fig_height: 4
     fig_caption: true
+    df_print: paged
 # output:
 #   revealjs::revealjs_presentation:
 #     theme: league
@@ -36,7 +37,7 @@ getDoParWorkers()
 # https://github.com/ome9ax/datascience/tree/master/data_products/house
 ```
 
-## Project goal
+## Project goal {.smaller}
 
 This app is a simulator which predict [House Sales in King County, Washington State, USA](https://www.kaggle.com/harlfoxem/housesalesprediction) function of multiples criterias. The dataset can be retrieved from the [Kaggle](https://www.kaggle.com) platform.
 
@@ -44,8 +45,8 @@ This App is built as part as the coursera Developing Data Products course Peer-g
 
 This **peer assessed assignment** has two parts.
 
-- First, a Shiny application and deployed on Rstudio's servers.
-- Second, and second the present reproducible pitch presentation about my application.
+> - First, a Shiny application and deployed on Rstudio's servers.
+> - Second, and second the present reproducible pitch presentation about my application.
 
 ```{r load_data, cache = TRUE}
 load_data <- function(file_url, data_dir = 'data', cache = FALSE){
@@ -64,10 +65,10 @@ load_data <- function(file_url, data_dir = 'data', cache = FALSE){
 raw_house <- load_data('kc_house_data.csv.xz', 'data')
 ```
 ```{r, echo = TRUE}
-head(raw_house, 2)
+head(raw_house, 20)
 ```
 
-## Slide with Bullets
+## Training
 
 The dataset contains `r nrow(raw_house)` rows and `r ncol(raw_house)` variables taken over a year.
 
@@ -79,7 +80,8 @@ house <- raw_house[, -nearZeroVar(raw_house)]
 dataPartitions <- createDataPartition(y = house$price, p = 0.7, list = F)
 training <- house[dataPartitions, ]
 validation <- house[-dataPartitions, ]
-trControl <- trainControl(method = 'repeatedcv', number = 8, repeats = 3, allowParallel = TRUE, verboseIter = FALSE)
+trControl <- trainControl(method = 'repeatedcv', number = 8, repeats = 3,
+                          allowParallel = TRUE, verboseIter = FALSE)
 modGbm <- train(price ~ zipcode + grade + condition + sqft_lot + bedrooms + week,
                 data = training, method = 'gbm', trControl = trControl, verbose = F)
 predGbm <- predict(modGbm, validation)
@@ -105,5 +107,5 @@ The user can then enter the prediction tab where the predicted and validation da
 
 ```{r price, echo = TRUE}
 hist(validation$price, breaks = 90, freq = FALSE, col = 'darkgray', border = 'white', xlab = 'Price', main = '')
-lines(density(predGbm, adjust = 4), lty="dotted", col="darkgreen", lwd=2)
+lines(density(predGbm, adjust = 4), lty = 'dotted', col = 'darkgreen', lwd=2)
 ```

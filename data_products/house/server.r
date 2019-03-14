@@ -42,8 +42,8 @@ load_data <- function(file_url, data_dir = 'data', cache = FALSE){
 }
 
 raw_house <- load_data('kc_house_data.csv.xz', './data')
-house <- raw_house[sample(nrow(raw_house), 5000), -nearZeroVar(raw_house)]
-# house <- raw_house[, -nearZeroVar(raw_house)]
+# house <- raw_house[sample(nrow(raw_house), 5000), -nearZeroVar(raw_house)]
+house <- raw_house[, -nearZeroVar(raw_house)]
 
 price.mean <- function(dataset) within(
   cbind(
@@ -99,12 +99,16 @@ modGbm <- train(price ~ zipcode + grade + condition + sqft_lot + bedrooms + week
 predGbm <- predict(modGbm, validation)
 accGbm <- accuracy(predGbm, validation$price)
 
+validation.gbm <- price.mean(transform(validation, price = predGbm))
+names(validation.gbm)[names(validation.gbm) == 'price'] <- 'price.gbm'
+
 validation.price.mean <- merge(
-  price.mean(validation),
-  # aggregate(price.lm ~ zipcode, cbind(validation[, c('id', 'zipcode')], price.lm = predLm), mean),
-  aggregate(cbind(price.lm, price.gbm) ~ zipcode, cbind(validation[, c('id', 'zipcode')], price.lm = predLm, price.gbm = predGbm), mean),
+  validation.gbm,
+  aggregate(cbind(price, price.lm) ~ zipcode, cbind(validation[, c('id', 'zipcode', 'price')], price.lm = predLm), mean),
   by = 'zipcode'
 )
+
+validation.price <- transform(validation, price.gbm = predGbm, price.lm = predLm)
 
 shinyServer(function(input, output, session) {
 
@@ -124,11 +128,11 @@ shinyServer(function(input, output, session) {
   }
 
   house.react <- reactive({
-    price.subset(house, input)
+    price.subset(validation.price, input)
   })
 
   price.mean.react <- reactive({
-    price.subset(house.price.mean, input)
+    price.subset(validation.price.mean, input)
   })
 
   validation.react <- reactive({
@@ -155,65 +159,65 @@ shinyServer(function(input, output, session) {
   output$price <- renderUI({
     sliderInput('price',
                 'Subset by price:',
-                min = min(house$price),
-                max = max(house$price),
-                value = range(house$price))
+                min = min(as.integer(validation.price$price.gbm)),
+                max = max(as.integer(ceiling(validation.price$price.gbm))),
+                value = range(validation.price$price.gbm))
   })
 
   output$zipcode <- renderUI({
     selectInput('zipcode',
                 'Zipcode:',
-                choices = levels(house$zipcode))
+                choices = levels(validation$zipcode))
   })
 
   output$grade <- renderUI({
     sliderInput('grade',
                 'Grade:',
-                min = min(house$grade),
-                max = max(house$grade),
+                min = min(validation$grade),
+                max = max(validation$grade),
                 step = 1,
-                value = round(median(house$grade)))
+                value = round(median(validation$grade)))
   })
 
   output$condition <- renderUI({
     sliderInput('condition',
                 'Condition:',
-                min = min(house$condition),
-                max = max(house$condition),
+                min = min(validation$condition),
+                max = max(validation$condition),
                 step = 1,
-                value = round(median(house$condition)))
+                value = round(median(validation$condition)))
   })
 
   output$sqft_lot <- renderUI({
     sliderInput('sqft_lot',
                 'Sqrt ft:',
-                min = min(house$sqft_lot),
-                max = max(house$sqft_lot),
+                min = min(validation$sqft_lot),
+                max = max(validation$sqft_lot),
                 step = 1,
-                value = round(median(house$sqft_lot)))
+                value = round(median(validation$sqft_lot)))
   })
 
   output$bedrooms <- renderUI({
     sliderInput('bedrooms',
                 'Bedrooms:',
-                min = min(house$bedrooms),
-                max = max(house$bedrooms),
+                min = min(validation$bedrooms),
+                max = max(validation$bedrooms),
                 step = 1,
-                value = round(median(house$bedrooms)))
+                value = round(median(validation$bedrooms)))
   })
 
   output$week <- renderUI({
     sliderInput('week',
                 'Week:',
-                min = min(house$week),
-                max = max(house$week),
+                min = min(validation$week),
+                max = max(validation$week),
                 step = 1,
-                value = round(median(house$week)))
+                value = round(median(validation$week)))
   })
 
   output$distPrice <- renderPlot({
     # generate bins based on input$bins from ui.R
-    price    <- house.react()$price
+    price    <- house.react()$price.gbm
     bins <- seq(min(price), max(price), length.out = ifelse(length(price) > 30, 30, length(price)))
 
     # draw the histogram with the specified number of bins
@@ -225,15 +229,17 @@ shinyServer(function(input, output, session) {
 
     house.subset <- house.react()
 
-    price.mean.subset <- price.mean.react()
+    price.mean.subset <- transform(price.mean.react(), price = price.gbm)
+
+    price.popup <- paste0('Real price: $', house.subset$price, '<br />', 'GBM price: $', house.subset$price.gbm, '<br />', 'LM price: $', house.subset$price.lm, '<br />')
 
     house.subset %>%
       leaflet() %>%
       addTiles(options = tileOptions(detectRetina = TRUE)) %>%
-      addMarkers(popup = paste0('$', house.subset$price), clusterOptions = markerClusterOptions(), options = markerOptions()) %>%
+      addMarkers(popup = price.popup, clusterOptions = markerClusterOptions(), options = markerOptions()) %>%
       # addCircleMarkers(radius = 10 * house$price.rescale, color = house$price.color, opacity = 0.5, fillOpacity = 0.5)
       addCircles(lat = price.mean.subset$lat, lng = price.mean.subset$long, weight = 3, radius = price.mean.subset$count * 20, color = price.mean.subset$price.color, opacity = 0.5, fillOpacity = 0.5) %>%
-      addLegend(title = 'Mean price', labels = seq(max(house$price), min(house$price), len = 9), colors = colorRampPalette(c('#DB4A46', '#F0AD4E', '#59BB59'))(9), position = 'bottomright')
+      addLegend(title = 'Mean price', labels = seq(max(as.integer(ceiling(validation.price$price.gbm))), min(as.integer(validation.price$price.gbm)), len = 9), colors = colorRampPalette(c('#DB4A46', '#F0AD4E', '#59BB59'))(9), position = 'bottomright')
   })
 
   output$price.predLm <- renderText({ paste0('$ ', round(predLm.react()$price)) })
