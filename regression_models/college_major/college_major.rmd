@@ -1,0 +1,93 @@
+---
+title: "College Major"
+author: "Eddy ∆"
+date: "20/11/2018"
+output:
+  pdf_document: default
+  html_document: default
+subtitle: How income varies across college major categories
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load data
+
+```{r load_data}
+install.packages("devtools")
+install.packages("broom")
+devtools::install_github("jhudsl/collegeIncome")
+library(collegeIncome)
+data(college)
+```
+
+A codebook for the dataset is given below:
+
+* rank: Rank by median earnings
+* major_code: Major code
+* major: Major description
+* major_category: Category of major
+* total: Total number of people with major
+* sample_size: Sample size of full-time, year-round individuals used for income/earnings estimates: p25th, median, p75th
+* p25th: 25th percentile of earnings
+* median: Median earnings of full-time, year-round workers
+* p75th: 75th percentile of earnings
+* perc_men: % men with major (out of total)
+* perc_women: % women with major (out of total)
+* perc_employed: % employed (out of total)
+* perc_employed_fulltime: % employed 35 hours or more (out of employed)
+* perc_employed_parttime: % employed less than 35 hours (out of employed)
+* perc_employed_fulltime_yearround: % employed at least 50 weeks and at least 35 hours (out of employed and full-time)
+* perc_unemployed: % unemployed (out of employed)
+* perc_college_jobs: % with job requiring a college degree (out of employed)
+* perc_non_college_jobs: % with job not requiring a college degree (out of employed)
+* perc_low_wage_jobs: % in low-wage service jobs (out of total)
+
+
+# Exploratory data analysis
+
+```{r college}
+str(college)
+summary(college)
+```
+
+Tidy the data by changing `major_code`, `major`, and `major_category` to factor
+```{r college_major}
+college_major <- transform(
+    college,
+    major_code = factor(major_code),
+    major = factor(major),
+    major_category = factor(major_category)
+)
+```
+
+## Data analysis
+
+You can also embed plots, for example:
+
+```{r ggpairs, echo=FALSE}
+ggpairs(college_major[, c('major_category', 'median')], lower = list(continuous = wrap('smooth', method = 'loess')), cardinality_threshold = 16)
+```
+
+```{r cfit}
+cfit = lm(median ~ major_category, college_major)
+summary(cfit)
+anova(cfit)
+broom::tidy(cfit)
+```
+
+## Based on your analysis, would you conclude that there is a significant association between college major category and income?
+No
+
+## Please type a few sentences describing your results.
+
+A simple linear regression between major_category (Category of major) and median (Median earnings of full-time, year-round workers) came out with a high p-value for the t test score. This outcome is also consitent with an anova analysis where the p-value is also high for the F test score. Those results makes me infer that there are no significant relationship between the median earning and the major's category.
+Hence deeper analysis would interesting to be done to check which other variable would be susceptible to be more correlated to the major's category.
+
+Out of curiosity let's explore other variables
+
+```{r pairs, echo=FALSE}
+pairs(college_major[, c('median', 'perc_men', 'perc_employed', 'perc_employed_parttime', 'perc_low_wage_jobs')],panel=panel.smooth, pch=16, cex=0.5, gap=0.25, lwd=2, las=1, cex.axis=0.7)
+```
+

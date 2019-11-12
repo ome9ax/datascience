@@ -12,6 +12,8 @@ subtitle: Weight Lifting Exercises Dataset
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+# setwd('~/projects/training/datascience/machine_learning/wle')
+# https://htmlpreview.github.io/?https://github.com/ome9ax/datascience/blob/master/machine_learning/wle/wle.html
 ```
 
 # Introduction
@@ -37,18 +39,21 @@ The participants were asked to perform one set of 10 repetitions of the Unilater
 
 # Exploratory data analysis
 ```{r original_data, include=FALSE}
-# setwd('~/projects/training/datascience/machine_learning/wle')
-# https://htmlpreview.github.io/?https://github.com/ome9ax/datascience/blob/master/machine_learning/wle/wle.html
-required.packages <- c('doParallel', 'caret', 'ggplot2', 'randomForest', 'rpart', 'rattle', 'nnet') # 'beepr', 'pgmm'
+required.packages <- c('doParallel', 'caret', 'MASS', 'randomForest', 'rpart', 'rattle', 'nnet') # 'ggplot2', 'beepr', 'pgmm'
 missing.packages <- setdiff(required.packages, rownames(installed.packages()))
-if (length(missing.packages) > 0) install.packages(missing.packages)
+if (length(missing.packages)) install.packages(missing.packages)
 sapply(required.packages, require, character.only = TRUE)
+# devtools::install_github('apache/arrow/r')
+library(arrow)
 
-# library(doParallel)
 registerDoParallel(cores = detectCores() - 1)
 getDoParWorkers()
 # Quick look at the original dataset
 # x <- read.csv2(unz(file.path('machine_learning', 'har', 'data', 'dataset-har-PUC-Rio-ugulino.zip'), file.path('dataset-har-PUC-Rio-ugulino.csv')), sep = ';')
+# temp <- tempfile()
+# download.file('http://groupware.les.inf.puc-rio.br/static/har/dataset-har-PUC-Rio-ugulino.zip', temp)
+# x <- read.csv(unz(temp, file.path('dataset-har-PUC-Rio-ugulino.csv')), sep = ';')
+# unlink(temp)
 # x <- load_data('http://groupware.les.inf.puc-rio.br/static/WLE/WearableComputing_weight_lifting_exercises_biceps_curl_variations.csv')
 ```
 
@@ -63,7 +68,7 @@ load_data <- function(file_url, data_dir = 'data', cache = FALSE){
         if(!file.exists(file_path)) stop('Unable to download file ', file_url)
     }
     # clean the dummy values like '', 'NA', '#DIV/0!'
-    read.csv(file_path, na.strings = c('', 'NA', '#DIV/0!'))
+    as_tibble(read.csv(file_path, na.strings = c('', 'NA', '#DIV/0!')))
     # NOTE : if new / transformed columns are needed
     # transform(
     #     read.csv(file_path, na.strings = c('', 'NA', '#DIV/0!')),
@@ -101,9 +106,10 @@ This rate is too high to impute data in the training data set with confidence.
 
 ## Build tidy datas set
 ```{r tidy_data}
-names(pml_training[, grep('num_window|belt|forearm|arm|dumbbell|classe', names(pml_training), invert = TRUE)])
+grep('num_window|belt|forearm|arm|dumbbell|classe', names(pml_training), value = TRUE, invert = TRUE)
+# names(pml_training[, grep('num_window|belt|forearm|arm|dumbbell|classe', names(pml_training), invert = TRUE)])
+# aggregate(kurtosis_roll_forearm ~ new_window, data = pml_training, FUN = function(x) sum(is.na(x)))
 
-# library(caret)
 tidy_data <- function(raw_data, treshold = 0.95){
     # NOTE : select predictors minus variables where the value is nearly the same
     tidy_predictor <- raw_data[, setdiff(grep('num_window|belt|forearm|arm|dumbbell|classe', names(raw_data)), nearZeroVar(raw_data))]
@@ -140,10 +146,15 @@ The 1st way to calculate an estimate will be using a statistical method. The mos
 
 In statistics, multinomial logistic regression is a classification method that generalizes logistic regression to multiclass problems, i.e. with more than two possible discrete outcomes. That is, it is a model that is used to predict the probabilities of the different possible outcomes of a categorically distributed dependent variable, given a set of independent variables (which may be real-valued, binary-valued, categorical-valued, etc.).
 
-```{r mlr, cache = TRUE}
+```{r, warning = FALSE, message = FALSE}
 modMlr <- multinom(classe ~ ., data = training)
 modMlr
-predMlr <- predict(modMlr, validation)
+modMlrStep <- stepAIC(modMlr, direction = 'both', trace = FALSE)
+summary(modMlrStep)$call
+modMlrStep
+```
+```{r mlr, cache = TRUE}
+predMlr <- predict(modMlrStep, validation)
 cmMlr <- confusionMatrix(predMlr, validation$classe)
 cmMlr
 ```
@@ -154,13 +165,16 @@ I'll first start with the random forest as it usually provides more accurate pre
 
 Random forests or random decision forests are an ensemble learning method for classification, regression and other tasks that operates by constructing a multitude of decision trees at training time and outputting the class that is the mode of the classes (classification) or mean prediction (regression) of the individual trees. Random decision forests correct for decision trees' habit of overfitting to their training set.
 ```{r random_forest, cache = TRUE}
-# library(ggplot2)
-# library(randomForest)
-# library(beepr)
-modRf <- train(classe ~ ., data = training, method = 'rf', prox = TRUE, trControl = trainControl(method = 'cv', number = 10, allowParallel = TRUE, verboseIter = FALSE))
+modRf <- train(
+        classe ~ ., data = training, method = 'rf', prox = TRUE,
+        trControl = trainControl(method = 'cv', number = 10, allowParallel = TRUE, verboseIter = FALSE)
+    )
 # No k-mean cross validation, Bootstrap resampling method 1 resampling iteration
 # Optimal setting, but overkill in the present case
-# modRf <- train(classe ~ ., data = training, method = 'rf', prox = TRUE, trControl = trainControl(method = 'boot', number = 1, allowParallel = TRUE))
+# modRf <- train(
+#         classe ~ ., data = training, method = 'rf', prox = TRUE,
+#         trControl = trainControl(method = 'boot', number = 1, allowParallel = TRUE)
+#     )
 # beep()
 modRf
 # modRf$resample
@@ -180,13 +194,16 @@ Decision tree learning uses a decision tree (as a predictive model) to go from o
 The second prediction model used to predict the classes is a Regression tree. It worth noting that the default setting for the `caret` package is quite weak with this data set. The `rpart` function default parameters provide a better prediction. This prediction can be reach by tweaking the caret params though.
 
 ```{r rpart, cache = TRUE}
-# library(rpart)
 # NOTE : this result can also be obtain using
 # modRpart <- rpart(classe ~ ., data = training, method = 'class')
 # predRpart <- predict(modRpart, validation, type = 'class')
 # Here to get more accute outcome trainControl need to be disabled and cp set to 0.0001
 # It's a case where caret default optimisation are actually performing worst than rpart basic setup
-modRpart <- train(classe ~ ., method = 'rpart', data = training, trControl = trainControl(method = 'cv', number = 10, allowParallel = TRUE, verboseIter = FALSE), tuneGrid = data.frame(cp = 0.0001))
+modRpart <- train(
+        classe ~ ., method = 'rpart', data = training,
+        trControl = trainControl(method = 'cv', number = 10, allowParallel = TRUE, verboseIter = FALSE),
+        tuneGrid = data.frame(cp = 0.0001)
+    )
 modRpart
 confusionMatrix.train(modRpart)
 predRpart <- predict(modRpart, validation)
@@ -196,7 +213,6 @@ cmRpart
 The Decision tree prediction accuracy (`r round(cmRpart$overall[[1]], 5)`) is weaker than the Random forest prediction, even if it performs above the average.
 
 ```{r fancyrpart, echo=FALSE}
-# library(rattle)
 fancyRpartPlot(modRpart$finalModel)
 ```
 
@@ -206,7 +222,11 @@ Gradient boosting is a machine learning technique for regression and classificat
 It shall be interesting to produce a prediction algorithm trainned using a Gradient Boosting model.
 
 ```{r gbm, cache = TRUE}
-modGbm <- train(classe ~ ., method = 'gbm', data = training, trControl = trainControl(method = 'cv', number = 10, allowParallel = TRUE, verboseIter = FALSE), verbose = FALSE)
+modGbm <- train(
+        classe ~ ., method = 'gbm', data = training,
+        trControl = trainControl(method = 'cv', number = 10, allowParallel = TRUE, verboseIter = FALSE),
+        verbose = FALSE
+    )
 modGbm
 confusionMatrix.train(modGbm)
 predGbm <- predict(modGbm, validation)
@@ -214,6 +234,30 @@ cmGbm <- confusionMatrix(predGbm, validation$classe)
 cmGbm
 ```
 The Gradient Boosting Model, generate better prediction (accuracy `r round(cmGbm$overall[[1]], 5)`) than the decision tree.
+
+## Support Vector Machine
+```{r}
+# set.seed(3523)
+# library(AppliedPredictiveModeling)
+# data(concrete)
+# inTrain = createDataPartition(concrete$CompressiveStrength, p = 3/4)[[1]]
+# training = concrete[inTrain, ]
+# testing = concrete[-inTrain, ]
+```
+Set the seed to 325 and fit a support vector machine using the e1071 package to predict Compressive Strength using the default settings. Predict on the testing set. What is the RMSE?
+```{r}
+# set.seed(325)
+# library(e1071)
+# modSvm <- svm(price ~ ., data = training)
+# trctrl <- trainControl(method = 'repeatedcv', number = 10, repeats = 3)
+# modSvm <- train(price ~ ., data = training, method = 'svmLinear', trControl = trctrl,
+#                  preProcess = c('center', 'scale'),
+#                  tuneLength = 10) # NOTE : gbm boost with trees
+# predSvm <- predict(modSvm, validation)
+# accSvm <- accuracy(predSvm, validation$price)
+# accSvm
+# data.frame(accSvm)['RMSE']
+```
 
 # Test cases predictions
 The trained machine learning algorithm generated above are now used to predict 20 test cases.
@@ -234,7 +278,9 @@ testingMlr <- predict(modMlr, testing)
 testingMlr
 table(testingRf, testingMlr)
 testingRpartPred <- predict(modRpart$finalModel, testing)
-testingRpart <- factor(colnames(testingRpartPred)[apply(testingRpartPred, 1, function(x) which.max(x))])
+testingRpart <- factor(
+        colnames(testingRpartPred)[apply(testingRpartPred, 1, function(x) which.max(x))]
+    )
 testingRpart
 table(testingRf, testingRpart)
 testingGbm <- predict(modGbm, testing)
@@ -242,7 +288,6 @@ testingGbm
 table(testingRf, testingGbm)
 ```
 ```{r data_sample, echo = FALSE}
-# library(pgmm)
 # stargazer::stargazer(table(testingRpart, testingRf), title = 'Testing Comparison', type = 'html')
 ```
 There is a `r sum(testingRf == testingMlr) * 100 / nrow(testing)`% of prediction matching between the Random Forest model and the Multinomial Logistic Regression model.
@@ -257,6 +302,7 @@ The Random Forest prediction model is a fair winner to predict the excercice `cl
 The Random forest prediction is very sensitive to the settings parameters used to train the algorithm. It produce a decent prediction though, but not good enough to par with the Random forest predictions.
 
 ```{r echo=FALSE}
+# rm(list = ls())
 # stopCluster(cl)
-stopImplicitCluster()
+# stopImplicitCluster()
 ```

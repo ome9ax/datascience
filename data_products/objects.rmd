@@ -1,0 +1,72 @@
+---
+title: "Objects"
+author: "Eddy ∆"
+date: "05/03/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r require}
+required.packages <- c('doParallel') # 'ggplot2', 'beepr', 'pgmm', 'knitr'
+missing.packages <- setdiff(required.packages, rownames(installed.packages()))
+if (length(missing.packages)) install.packages(missing.packages)
+sapply(required.packages, require, character.only = TRUE)
+
+if (length(setdiff(c('arrow'), rownames(installed.packages())))) devtools::install_github('apache/arrow/r')
+library(arrow)
+
+registerDoParallel(cores = detectCores() - 1)
+getDoParWorkers()
+```
+
+## Objects
+
+New class
+
+```{r polygon}
+library(methods)
+setClass('polygon', representation(x = 'numeric', y = 'numeric'))
+setMethod('plot', 'polygon',
+    function(x, y, ...){
+      plot(x@x, x@y, type = 'n', ...)
+      xp <- c(x@x, x@x[1])
+      yp <- c(x@y, x@y[1])
+      lines(xp, yp)
+    }
+  )
+```
+```{p plot}
+p <- new('polygon', x = c(1, 2, 3, 4), y = c(1, 2, 3, 1))
+plot(p)
+```
+
+## House Sales in King County, USA
+
+<https://www.kaggle.com/harlfoxem/housesalesprediction>
+
+```{r load_data, cache = TRUE}
+load_data <- function(file_url, data_dir = 'data', cache = FALSE){
+  # load the data model from the url
+  file_path <- file.path(data_dir, basename(file_url))
+  # clean the dummy values like '', 'NA', '#DIV/0!'
+  as_tibble(transform(
+    read.csv(file_path),
+    # id = as.integer(id),
+    # date = as.Date(substring(as.character(date), 1, 8), format = '%Y%m%d'),
+    date = as.integer(substring(as.character(date), 1, 8))
+  ))
+}
+
+house <- load_data('kc_house_data.csv.xz', '~/projects/training/datascience/data_products/house/data')
+dim(house)
+```
+```{r load_data}
+
+```
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```

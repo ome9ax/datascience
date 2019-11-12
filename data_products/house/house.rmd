@@ -1,0 +1,184 @@
+---
+title: 'Predict house price using regression'
+subtitle: 'Peer-graded Assignment - Course Project: Shiny Application and Reproducible Pitch'
+author: 'Eddy ∆'
+date: '07/03/2019'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r require}
+setwd('~/projects/training/datascience/data_products/house')
+required.packages <- c('doParallel', 'ggplot2', 'caret', 'MASS', 'forecast', 'GGally') # 'beepr', 'pgmm', 'knitr'
+missing.packages <- setdiff(required.packages, rownames(installed.packages()))
+if (length(missing.packages)) install.packages(missing.packages)
+sapply(required.packages, require, character.only = TRUE)
+
+if (length(setdiff(c('arrow'), rownames(installed.packages())))) devtools::install_github('apache/arrow/r')
+library(arrow)
+
+registerDoParallel(cores = detectCores() - 1)
+getDoParWorkers()
+```
+
+# House Sales in  King County, Washington State, USA
+
+[Kaggle - House Sales in King County, USA](https://www.kaggle.com/harlfoxem/housesalesprediction)
+
+```{r load_data, cache = TRUE}
+load_data <- function(file_url, data_dir = 'data', cache = FALSE){
+  file_path <- file.path(data_dir, basename(file_url))
+  as_tibble(transform(
+    read.csv(file_path),
+    # id = as.character(id),
+    zipcode = factor(zipcode),
+    date = as.integer(substring(as.character(date), 1, 8)),
+    year = as.integer(substring(as.character(date), 1, 4)),
+    week = as.integer(format(as.Date(substring(as.character(date), 1, 8), format = '%Y%m%d'), '%W'))
+  ))
+}
+
+raw_house <- load_data('kc_house_data.csv.xz', '~/projects/training/datascience/data_products/house/data')
+# raw_house <- raw_house[order(raw_house$date), ]
+```
+Out of curiosity let's explore other variables
+
+# Exploratory
+
+```{r date, echo=FALSE}
+str(raw_house)
+hist(raw_house$date, breaks = 90)
+```
+
+```{r pairs}
+set.seed(99)
+
+names(raw_house)[nearZeroVar(raw_house)]
+# house <- raw_house[sample(nrow(raw_house), 6000), -nearZeroVar(raw_house)]
+house <- raw_house[sample(order(raw_house$date), 6000), -nearZeroVar(raw_house)]
+
+# pairs(price ~ ., data = house[, setdiff(names(house), c('id', 'date', 'month', 'week'))])
+pairs(house[, setdiff(names(house), c('id', 'date', 'month', 'week'))],panel=panel.smooth, pch=16, cex=0.5, gap=0.25, lwd=2, las=1, cex.axis=0.7)
+# ggpairs(house[, setdiff(names(house), c('id', 'date', 'month', 'week'))], lower = list(continuous = wrap('smooth', method = 'loess')), cardinality_threshold = ncol(house))
+# ggpairs(house[, setdiff(names(house), c('id', 'date', 'month', 'week'))], lower = list(continuous = wrap('smooth', method = 'lm')), cardinality_threshold = ncol(house))
+# my_fn <- function(data, mapping, ...){ p <- ggplot(data = data, mapping = mapping) + geom_point() + geom_smooth(method=loess, fill="red", color="red", ...) + geom_smooth(method=lm, fill="blue", color="blue", ...); p }
+# ggpairs(swiss,columns = 1:4, lower = list(continuous = my_fn))
+```
+```{r building_data}
+inBuild <- createFolds(y = house$price, k = 2)
+# training <- training[order(training$date), ]
+training <- house[inBuild[[1]], ]
+validation <- house[-inBuild[[2]], ]
+
+dim(training)
+dim(validation)
+```
+
+# Analysis
+## Multiple linear regression
+The 1st way to calculate an estimate will be using a statistical method. The most common to predict discrete variable outcome is the multiple linear regression.
+
+In statistics, linear regression is a linear approach to modelling the relationship between a scalar response (or dependent variable) and one or more explanatory variables (or independent variables). The case of one explanatory variable is called simple linear regression. For more than one explanatory variable, the process is called multiple linear regression. This term is distinct from multivariate linear regression, where multiple correlated dependent variables are predicted, rather than a single scalar variable.
+
+```{r, warning = FALSE, message = FALSE}
+modLm <- lm(price ~ ., training)
+summary(modLm)
+modLmStep <- stepAIC(modLm, direction = 'both', trace = FALSE)
+# summary(modLmStep)$call
+summary(modLmStep)
+# par(mfrow=c(2,2))
+plot(modLmStep)
+```
+```{r lm, cache = TRUE}
+predLm <- predict(modLmStep, validation)
+accLm <- accuracy(predLm, validation$price)
+accLm
+# data.frame(accLm)['RMSE']
+```
+```{r plot_lm}
+
+```
+
+# Machine learning predictions
+## Bagging
+```{r bagging}
+# head(training)
+# ll <- matrix(NA, nrow = 10, ncol = 155)
+# for (i in 1:10){
+#     ss <- sample(1:dim(training), replace = T)
+#     training0 <- training[ss, ]; training0 <- training0[order(training0$date), ]
+#     loess0 <- loess(price ~ ., data = training0, span = 0.2)
+#     ll[i, ] <- predict(loess0, newdata = data.frame(price = 1:155))
+# }
+```
+```{r}
+# plot(training$ozone, training$temperature, pch = 19, cex = 0.5)
+# for (i in 1:10) {lines(1:155, ll[i, ], col = 'grey', lwd = 2)}
+# lines(1:155, apply(ll, 2, mean), col = 'red', lwd = 2)
+```
+
+## Boosting
+```{r boosting, message = FALSE}
+# library(ISLR); library(ggplot2); library(caret); data(Wage)
+# trctrl <- trainControl(method = 'repeatedcv', number = 10, repeats = 3)
+trControl <- trainControl(method = 'cv', number = 10, allowParallel = TRUE, verboseIter = FALSE)
+# trControl <- trainControl(method = 'boot', number = 1, allowParallel = TRUE)
+modGbm <- train(price ~ ., data = training, method = 'gbm', trControl = trControl, verbose = F) # NOTE : gbm boost with trees 
+modGbm
+```
+```{r print_it, echo=FALSE}
+# print(modGbm)
+predGbm <- predict(modGbm, validation)
+accGbm <- accuracy(predGbm, validation$price)
+accGbm
+```
+
+## Forecast
+Load the data on the number of visitors to the instructors blog from here:
+
+[https://d396qusza40orc.cloudfront.net/predmachlearn/gaData.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/gaData.csv)
+
+Using the commands:
+```{r}
+library(lubridate) # For year() function below
+# dat = read.csv('~/Desktop/gaData.csv')
+dat = read.csv(get_file('https://d396qusza40orc.cloudfront.net/predmachlearn/gaData.csv'))
+training = dat[year(dat$date) < 2012, ]
+testing = dat[year(dat$date) > 2011, ]
+tstrain = ts(training$visitsTumblr)
+```
+Fit a model using the bats() function in the forecast package to the training time series. Then forecast this model for the remaining time points. For how many of the testing points is the true value within the 95% prediction interval bounds?
+```{r}
+modFit <- bats(training$visitsTumblr)
+forecast95 <- forecast(modFit, level = 95, h = nrow(testing))
+names(forecast95)
+in95 <- sum(testing$visitsTumblr > forecast95$lower & testing$visitsTumblr < forecast95$upper)
+in95 / nrow(testing)
+```
+
+# France
+[Demandes de valeurs foncières](https://www.data.gouv.fr/fr/datasets/5c4ae55a634f4117716d5656)
+[valeursfoncieres-2014.txt](https://www.data.gouv.fr/fr/datasets/r/1be77ca5-dc1b-4e50-af2b-0240147e0346)
+[valeursfoncieres-2015.txt](https://www.data.gouv.fr/fr/datasets/r/7161c9f2-3d91-4caf-afa2-cfe535807f04)
+[valeursfoncieres-2016.txt](https://www.data.gouv.fr/fr/datasets/r/0ab442c5-57d1-4139-92c2-19672336401c)
+[valeursfoncieres-2017.txt](https://www.data.gouv.fr/fr/datasets/r/09f013c5-9531-444b-ab6c-7a0e88efd77d)
+[valeursfoncieres-2018.txt](https://www.data.gouv.fr/fr/datasets/r/dc13282f-3c7a-4fac-b1f3-3939e39d45f6)
+[valeursfoncieres-2014.txt](https://static.data.gouv.fr/resources/demande-de-valeurs-foncieres/20190417-123017/valeursfoncieres-2014.txt)
+[valeursfoncieres-2015.txt](https://static.data.gouv.fr/resources/demande-de-valeurs-foncieres/20190417-124719/valeursfoncieres-2015.txt)
+[valeursfoncieres-2016.txt](https://static.data.gouv.fr/resources/demande-de-valeurs-foncieres/20190417-145226/valeursfoncieres-2016.txt)
+[valeursfoncieres-2017.txt](https://static.data.gouv.fr/resources/demande-de-valeurs-foncieres/20190417-143602/valeursfoncieres-2017.txt)
+[valeursfoncieres-2018.txt](https://static.data.gouv.fr/resources/demande-de-valeurs-foncieres/20190417-121621/valeursfoncieres-2018.txt)
+
+```{r}
+data_dir <- 'data'
+file_url <- 'https://static.data.gouv.fr/resources/demande-de-valeurs-foncieres/20190417-121621/valeursfoncieres-2018.txt'
+file_path <- file.path(data_dir, file_name <- basename(file_url))
+if(!file.exists(file_path)) download.file(file_url, file_path, quiet = TRUE)
+# if(file.exists(file_path)) system(paste('xz -9e -T 0', file_path))
+file_path <- paste0(file_path, '.xz')
+xzfile(file_path, compression = 9)
+
+```

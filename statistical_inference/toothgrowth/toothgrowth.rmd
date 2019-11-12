@@ -83,7 +83,14 @@ t.test(len ~ supp, paired = F, var.equal = F, data = ToothGrowth)
 ```
 
 The $H_{0}$ can't be rejected with the 95% of confidense because the 95% confidence interval contains 0. We then can't conclude with 95% of confidence that there is a correlation between the teeth growth and the delivery method.
+However the min value is pretty close to 0, so it's a fair to think that under a little smaller confidence interval it can fall out of the confidence interval.
+
+```{r delivery_93.9}
+t.test(len ~ supp, paired=F, var.equal=F, data=ToothGrowth, alt='two.sided', conf.level=.8)
+```
+
+$H_{0}$ can be rejected under 93.9% confidence because at this confidence level the confidence interval doesn't contains 0. Which means that with 93.9% of confidence it's possible to consider a correlation between teeth growth and delivery method.
 
 # Conclusion
 
-We can assume assume with 95% of confidence the the teeth growth is positively correlated to the teeth growth. However there is no enough data to conclude any correlation between the teeth growth and the delivery method with 95% confidence.
+We can assume assume with 95% of confidence the the teeth growth is positively correlated to the teeth growth. However there is no enough data to conclude any correlation between the teeth growth and the delivery method with 95% confidence. It's interesting to take note about this last point that under 93.9% confidence it's possible to fairly consider a correlation between teeth growth and delivery method.

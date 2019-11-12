@@ -1,0 +1,181 @@
+---
+title: "Severe weather events impacts on the US communities and municipalities"
+author: "Eddy ∆"
+date: "30/04/2017"
+subtitle: 'Reproducible Research: Peer Assessment 2'
+keep_md: yes
+---
+
+## Synopsis
+
+This report aim is to provide an analysis of severe weather events impacts on the US communities and municipalities, from both public health and economic problems perspective.
+We will study fatalities, injuries, property,  and crop damage weather event can generate.
+A better understanding of such impacts can help to prevent or handle more efficiently such outcomes.
+To do so, we will explore the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database.
+
+From those information we'll try to identify :
+
+1. Which types of events (as indicated in the **EVTYPE** variable) are most harmful with respect to population health across the United States.
+2. Which types of events have the greatest economic consequences across the United States.
+
+## Data Processing
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load_file}
+setwd('~/projects/training/datascience/reproducible_research/storm')
+
+get_file <- function(file_url = 'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2', data_dir = 'data'){
+    if(!dir.exists(data_dir)) dir.create(data_dir)
+    file_name <- basename(file_url)
+    file_path <- file.path(data_dir, file_name)
+    if(!file.exists(file_path))
+        download.file(file_url, file_path, quiet = TRUE)
+    if(!file.exists(file_path))
+        stop("Unable to download file ", file_url)
+    # return the archive file name
+    file_name
+}
+# if (!file.exists('load_data.R')) setwd('~/projects/training/datascience/reproducible_research/storm')
+# source('load_data.R')
+
+# Load data from files
+file_archive <- get_file()
+```
+
+```{r storm}
+if(exists('storm')){
+    tr <- c(H = '2', h = '2', K = '3', M = '6', m = '6', B = '9', '+' = '1', '-' = '-1', '?' = NA, '0' = '0', '1' = '1', '2' = '2', '3' = '3', '4' = '4', '5' = '5', '6' = '6', '7' = '7', '8' = '8')
+    exp_value <- function(val, exp) val * 10^as.numeric(tr[exp])
+    get_year <- function(date, time, time_zone) as.numeric(format(strptime(paste(gsub('([0-9/]+).+', '\\1', date), time, time_zone), format = '%m/%d/%Y %H%M'), '%Y'))
+    storm <- transform(
+        read.csv(file.path('data', file_archive), sep = ',', stringsAsFactors = FALSE, na.strings = c('', 'NA')),
+        # create begin and end date type and years
+        BGN_YEAR = get_year(BGN_DATE, BGN_TIME, TIME_ZONE),
+        END_YEAR = get_year(END_DATE, END_TIME, TIME_ZONE),
+        # get the cost on the same scale
+        PROP = mapply(exp_value, PROPDMG, PROPDMGEXP),
+        CROP = mapply(exp_value, CROPDMG, CROPDMGEXP)
+        # change the 'COUNTYNAME', 'STATE', 'STATEOFFIC', 'EVTYPE', 'ZONENAMES', 'WFO', 'BGN_LOCATI', and 'END_LOCATI' column type to factor
+        # COUNTYNAME = mapply(factor, COUNTYNAME),
+        # STATE = mapply(factor, STATE),
+        # STATEOFFIC = mapply(factor, STATEOFFIC),
+        # EVTYPE = mapply(factor, EVTYPE),
+        # ZONENAMES = mapply(factor, ZONENAMES),
+        # WFO = mapply(factor, WFO),
+        # BGN_LOCATI = mapply(factor, BGN_LOCATI),
+        # END_LOCATI = mapply(factor, END_LOCATI)
+    )
+    cols <- c('COUNTYNAME', 'STATE', 'STATEOFFIC', 'EVTYPE', 'ZONENAMES', 'WFO', 'BGN_LOCATI', 'END_LOCATI')
+    storm[, cols] <- lapply(storm[, cols, drop = FALSE], as.factor)
+}
+```
+
+```{r year_range}
+year_range <- range(storm$BGN_YEAR, na.rm = T)
+```
+
+The dataset contains `r nrow(storm)` rows and `r length(names(storm))` columns.
+And log events from `r year_range[1]` to `r year_range[2]`.
+
+Let's first have a look at the number of events distribution across the years in United States.
+```{r event_count}
+# Build a boxplot to have an overview of the data distribution
+# hist(storm$BGN_YEAR, main = 'Events in United States', xlab = 'Years', ylab = 'Events (nb)')
+boxplot(storm$BGN_YEAR, main = 'Events in United States', ylab = 'Years')
+evt_count <- aggregate(BGN_DATE ~ BGN_YEAR, data = storm, FUN = length)
+evt_count_range <- range(evt_count$BGN_DATE, na.rm = T)
+```
+
+We can notice a constant increase of the count of events across the year.
+We are able to confirm the lack of recorded event in the early years in the dataset (from `r evt_count_range[1]` to `r evt_count_range[2]`).
+
+### Analysis of Severe weather events impact on population health across the United States
+
+Let's now at the impact of the events on the population in terms of **INJURIES** and **FATALITIES**.
+First we need to have an idea of the most harmful events.
+To do so we'll have a look at the total numbers of  **Injuries** and **Fatalities** per event types.
+
+```{r harm}
+injuries <- aggregate(INJURIES ~ EVTYPE, storm, sum, na.rm = T)
+fatalities <- aggregate(FATALITIES ~ EVTYPE, storm, sum, na.rm = T)
+# put side by side the costs
+harm <- merge(injuries, fatalities, by = 'EVTYPE')
+harm$CASES <- harm$INJURIES + harm$FATALITIES
+# sort the tables
+injuries <- injuries[order(injuries$INJURIES, decreasing = T), ]
+fatalities <- fatalities[order(fatalities$FATALITIES, decreasing = T), ]
+harm <- harm[order(harm$CASES, decreasing = T), ]
+```
+
+```{r harm_plot}
+# reshape the table columns in a single column type
+top_harm <- reshape(head(harm, 20), direction = 'long', varying = c('INJURIES', 'FATALITIES', 'CASES'), v.names = 'cases', timevar = 'type', times = c('Injuries', 'Fatalities', 'Total'))
+library(ggplot2)
+ggplot(data = top_harm, aes(x = EVTYPE, y = cases, group = type, colour = type)) +
+    geom_line() + geom_point() +
+    labs(title = 'Weather events impact on population health', x = 'Event types', y = 'Number of fatalities and injuries') +
+    theme(axis.text.x=element_text(angle = 90, hjust = 1))
+```
+
+```{r harm_tables}
+head(harm, 20)
+head(fatalities, 10)
+head(injuries, 10)
+```
+
+**`r harm$EVTYPE[1]`** are by far the most harmful event, followed by **`r harm$EVTYPE[2]`** and **`r harm$EVTYPE[3]`**.
+
+**`r injuries$EVTYPE[1]`** cost the most injuries, followed by **`r injuries$EVTYPE[2]`** and **`r injuries$EVTYPE[3]`**.
+
+**`r fatalities$EVTYPE[1]`**  the most lethals event, followed by **`r fatalities$EVTYPE[2]`** and **`r fatalities$EVTYPE[3]`**.
+
+### Analysis of Severe weather events economical consequences across the United States
+
+For this analysis we're going to pay particularly attention to **property** (**PROPDMG**) and **crop** (**CROPDMG**) damages.
+
+We need to consider the factor which need to be applied on the values (National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf))
+
+To do so we'll have a look at the total numbers of  **property** and **crop** damages per event types.
+
+```{r dmg}
+prop <- aggregate(PROP ~ EVTYPE, storm, sum, na.rm = T)
+crop <- aggregate(CROP ~ EVTYPE, storm, sum, na.rm = T)
+# put side by side the costs
+dmg <- merge(prop, crop, by = 'EVTYPE')
+dmg$AMOUNT <- dmg$PROP + dmg$CROP
+# sort the tables
+prop <- prop[order(prop$PROP, decreasing = T), ]
+crop <- crop[order(crop$CROP, decreasing = T), ]
+dmg <- dmg[order(dmg$AMOUNT, decreasing = T), ]
+```
+
+```{r dmg_plot}
+# reshape the table columns in a single column type
+top_dmg <- reshape(head(dmg, 20), direction = 'long', varying = c('PROP', 'CROP', 'AMOUNT'), v.names = 'amount', timevar = 'type', times = c('Property', 'Crop', 'Total'))
+library(ggplot2)
+ggplot(data = top_dmg, aes(x = EVTYPE, y = amount, group = type, colour = type)) +
+    geom_line() + geom_point() +
+    labs(title = 'Weather events damages on economy', x = 'Event types', y = 'Amount in $US') +
+    theme(axis.text.x=element_text(angle = 90, hjust = 1))
+```
+
+```{r dmg_tables}
+head(dmg, 20)
+head(prop, 10)
+head(crop, 10)
+```
+
+**`r dmg$EVTYPE[1]`** are the most expensive event, followed by **`r dmg$EVTYPE[2]`** and **`r dmg$EVTYPE[3]`**.
+
+**`r prop$EVTYPE[1]`** are the most expensive event on properties, followed by **`r prop$EVTYPE[2]`** and **`r prop$EVTYPE[3]`**.
+
+**`r crop$EVTYPE[1]`** are the most expensive event on crop, followed by **`r crop$EVTYPE[2]`** and **`r crop$EVTYPE[3]`**.
+
+## Results
+
+As a conclusion we can safely consider **`r harm$EVTYPE[1]`** as the most dangerous weather event for the population.
+
+The **`r dmg$EVTYPE[1]`** causes the greatest economic consequences on the US communities and municipalities in general and on the properties in particular. Meanwhile the **`r crop$EVTYPE[1]`** have a huge cost on the crops.

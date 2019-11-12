@@ -1,0 +1,23 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+# Load the file and remove the empty columns
+stomatal <- Filter(function(x)!all(is.na(x)), read.csv('data/stomatal.csv'))
+# clean the column names
+names(stomatal) <- gsub('\\.+', '\\.', names(stomatal))
+# display the table
+stomatal
+```
+
+```{r test}
+# run the kruskal test
+kruskal.test(stomatal_density ~ co2, data = subset(stomatal, water == 'Sat'), alternative = 'one.sided', paired = FALSE)
+```
+

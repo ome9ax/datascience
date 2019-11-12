@@ -16,12 +16,12 @@ if (length(missing.packages)) install.packages(missing.packages)
 sapply(required.packages, require, character.only = TRUE)
 ```
 
-## March 3rd, 2019 : mtcars
-```{r, message = FALSE, warning = FALSE, echo = FALSE}
-plot_ly(mtcars, x = ~wt, y = ~mpg, mode = 'markers', color = ~factor(cyl), size = ~hp)
-```
+<!-- ## March 3rd, 2019 : mtcars -->
+<!-- ```{r, message = FALSE, warning = FALSE, echo = FALSE} -->
+<!-- plot_ly(mtcars, x = ~wt, y = ~mpg, mode = 'markers', color = ~factor(cyl), size = ~hp) -->
+<!-- ``` -->
 
-## March 3rd, 2019 : diamonds
+## March 3rd, 2019 : Diamonds
 ```{r, message = FALSE, warning = FALSE, echo = FALSE}
-plot_ly(diamonds, x = ~carat, y = ~price, color = ~clarity)
+plot_ly(diamonds[sample(nrow(diamonds), 999), ], z = ~carat, y = ~price, x = ~cut, color = ~clarity)
 ```

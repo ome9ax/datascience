@@ -1,0 +1,13 @@
+name: house
+title: house
+username:
+account: omegax
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 786508
+bundleId: 1941547
+url: https://omegax.shinyapps.io/house/
+when: 1552628598.60498
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: gomap.js|house.rmd|presentation.html|presentation.rmd|archives/app.r|presentation_files/figure-html/price-1.png|presentation_files/figure-revealjs/price-1.png

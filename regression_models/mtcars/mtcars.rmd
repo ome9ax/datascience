@@ -1,0 +1,157 @@
+---
+title: 'Peer-graded Assignment: Regression Models Course Project'
+subtitle: 'MPG difference between automatic and manual transmissions'
+author: "Eddy Delta"
+date: "09/01/2019"
+output: pdf_document
+geometry: margin=1.5cm
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+## Executive summary
+
+You work for Motor Trend, a magazine about the automobile industry. Looking at a data set of a collection of cars, they are interested in exploring the relationship between a set of variables and miles per gallon (MPG) (outcome). They are particularly interested in the following two questions:
+
+* "Is an automatic or manual transmission better for MPG"
+* "Quantify the MPG difference between automatic and manual transmissions"
+
+## Dataset description
+
+The data was extracted from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973–74 models).
+
+The data frame contains 32 observations on 11 (numeric) variables.
+[, 1]	`mpg`	Miles/(US) gallon
+
+[, 2]	`cyl`	Number of cylinders
+
+[, 3]	`disp`	Displacement (cu.in.)
+
+[, 4]	`hp`	Gross horsepower
+
+[, 5]	`drat`	Rear axle ratio
+
+[, 6]	`wt`	Weight (1000 lbs)
+
+[, 7]	`qsec`	1/4 mile time
+
+[, 8]	`vs`	Engine (0 = V-shaped, 1 = straight)
+
+[, 9]	`am`	Transmission (0 = automatic, 1 = manual)
+
+[,10]	`gear`	Number of forward gears
+
+[,11]	`carb`	Number of carburetors
+
+# Data exploratory analysis
+
+## Data observations (see figures in the appendix)
+
+```{r mtcars, echo=FALSE}
+library(datasets)
+data(mtcars)
+# aggregate(mtcars$mpg, by = list(am = mtcars$am), mean)
+```
+
+By having a look at the *Data overview* in the figures appendix, we can observe that te mean MPG consumption is lower for **automatic** transmission (`r mean(mtcars[mtcars$am == 0, ]$mpg)`) than for **manual** transmission (`r mean(mtcars[mtcars$am == 1, ]$mpg)`). Is it significantly lower ?
+
+## Hypothesis test
+
+Let's consider $H_{0} : mean(MPG_{automatic}) \geq mean(MPG_{manual})$ and $H_{A} : mean(MPG_{automatic}) < mean(MPG_{manual})$.
+
+```{r test}
+mpg_test <- t.test(mpg ~ am, data = mtcars, alternative = 'less', paired = FALSE)
+mpg_test$p.value
+```
+
+The `p-value`, is lower than `0.05`, so the null hypothesis is rejected. The **automatic** transmission average MPG is significantly lower than the **manual** transmission average MPG.
+
+# Regression models
+## regression with transmission (am) predictor (see figures in the appendix)
+
+```{r fit_am}
+mtcars2 <- transform(mtcars,
+                     vs = factor(vs, c(0, 1), c('V-shaped', 'Straight')),
+                     am = factor(am, c(0, 1), c('Automatic', 'Manual')))
+# mtcars2$color <- c('0' = 'blue', '1' = 'red')[as.character(mtcars2$am)]
+fit_am <- lm(mpg ~ am, mtcars2)
+```
+
+This model shows a significant relationship between transmission and consumption based on the predictor p-value. It estimate to `r fit_am$coefficients[[2]]` the average MPG when we switch from automatic transmission to manual transmission. Although the R-square `r summary(fit_am)$r.squared` is quite low.
+
+It's then interresting to investigate if additional parameter can provide a better prediction.
+
+## ANOVA (see figures in the appendix)
+
+```{r fit_multiple}
+fit_multiple <- lm(mpg ~ am + cyl + hp + wt + qsec + vs + gear + carb, mtcars2)
+library(MASS)
+summary(stepAIC(fit_multiple, direction = 'both', trace = FALSE))$call
+```
+
+The residuals shows homoscedasticity, don't follow a clear pattern, and don't have outliers.
+
+This model reveal that the weight, with a `r summary(fit_multiple)$coefficients[5, 4]` p-value, is a more reliable predictor than the transmission (am) with 95% of confidence. It also point our attention to the qsec 1/4 mile time to be considered as a predictor.
+The adjusted R-squared is also much higher even if a slight increase due to the addition of predictors is expected.
+
+The analysis of variance between the simple predictor model and the multiple one gives us arguments in favour of the multiple predictor model as the F-test p.value is significantly low.
+For the purpose of this analysis, an interesting analysis to perform seems to be the regression with the weight and the acceleration (qsec) relative to the transmission.
+
+## regression with multiple predictors (see figures in the appendix)
+
+```{r fit_wt_qsec}
+fit_wt_qsec <- lm(mpg ~ am:wt + am:qsec, mtcars2)
+```
+
+The prediction of the MPG between automatic and manual transmission using the weight (wt) and the acceleration as predictor highlight a smaller MPG decrease for automatic than manual transmission.
+
+However the MPG increase is higher with the acceleration (qsec) increase for the manual transmission than the automatic.
+
+# Conclusion
+
+The data exploratory analysis allows us to assume with 95% of confidence that the manual transmission is better for the MPG than the automatic transmission.
+
+The regression analysis MPG overall average increase when you change from automatic to manual transmission. But looking deeper at the data reveal a strong but contrasted influence of the car weight and average acceleration on the MPG which requires a deeper look.
+
+# Appendix of figures
+## Data overview
+
+```{r overview, echo=FALSE}
+str(mtcars)
+```
+
+## Data distribution
+
+```{r distribution, echo=FALSE}
+boxplot(mpg ~ am, data = mtcars2,
+        xlab = 'Transmission', ylab = 'MPG', main='MPG by Transmission Type')
+```
+
+## regression with am predictor
+
+```{r summary_am}
+summary(fit_am)
+```
+
+## ANOVA
+
+```{r anova}
+summary(fit_multiple)
+anova(
+    fit_am,
+    lm(mpg ~ am + wt + qsec, mtcars2),
+    fit_multiple
+)
+```
+
+## regression with multiple predictors
+
+```{r plot_reg_am}
+summary(fit_wt_qsec)
+# pairs(mpg ~ ., data = mtcars)
+par(mfrow=c(2,2))
+plot(fit_wt_qsec)
+```

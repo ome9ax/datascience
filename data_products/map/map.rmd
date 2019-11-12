@@ -21,7 +21,7 @@ sapply(required.packages, require, character.only = TRUE)
 df <- data.frame(lat = c(51.5073509, 51.501476, 51.505153), lng = c(-0.1277583, -0.140634, -0.075664), popup = c('London', 'Buckingham Palace', 'Tower Bridge'))
 my_map <- df %>%
   leaflet() %>%
-  addTiles() %>%
+  addTiles(options = tileOptions(detectRetina = TRUE)) %>%
   addMarkers(popup = df$popup)
 my_map
 ```

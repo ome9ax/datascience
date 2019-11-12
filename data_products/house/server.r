@@ -6,7 +6,14 @@
 #
 #    http://shiny.rstudio.com/
 #
-# setwd('~/projects/training/datascience/data_products/house')
+setwd('~/projects/training/datascience/data_products/house')
+
+# required.packages <- c('doParallel', 'shiny', 'leaflet', 'caret', 'MASS', 'gbm', 'forecast') # 'devtools', 'ggplot2', 'beepr', 'pgmm', 'knitr', 'maps', 'maptools', 'sp', 'rgeos'
+# missing.packages <- setdiff(required.packages, rownames(installed.packages()))
+# if (length(missing.packages)) install.packages(missing.packages)
+# sapply(required.packages, library, character.only = TRUE)
+# if (length(setdiff(c('arrow'), rownames(installed.packages())))) devtools::install_github('apache/arrow/r')
+# library(arrow)
 
 library(doParallel)
 library(shiny)
@@ -15,13 +22,9 @@ library(caret)
 library(MASS)
 library(gbm)
 library(forecast)
-# required.packages <- c('doParallel', 'shiny', 'leaflet', 'caret', 'MASS', 'gbm', 'forecast') # 'devtools', 'ggplot2', 'beepr', 'pgmm', 'knitr', 'maps', 'maptools', 'sp', 'rgeos'
-# missing.packages <- setdiff(required.packages, rownames(installed.packages()))
-# if (length(missing.packages)) install.packages(missing.packages)
-# sapply(required.packages, library, character.only = TRUE)
-
-# if (length(setdiff(c('arrow'), rownames(installed.packages())))) devtools::install_github('apache/arrow/r')
-# library(arrow)
+# install.packages('MonetDBLite')
+library(DBI)
+library(dplyr)
 
 registerDoParallel(cores = ifelse(detectCores() > 1, detectCores() - 1, 1))
 
@@ -44,6 +47,48 @@ load_data <- function(file_url, data_dir = 'data', cache = FALSE){
 raw_house <- load_data('kc_house_data.csv.xz', './data')
 # house <- raw_house[sample(nrow(raw_house), 5000), -nearZeroVar(raw_house)]
 house <- raw_house[, -nearZeroVar(raw_house)]
+
+rm(list = c('load_data', 'raw_house'))
+
+# My 1st aborted approach was to split the data between 2014 and 2015
+# This split is pretty weak because it ignore the seasonality effects on the transactions.
+# This dataset doesn't contains a wide enough time periode to be reliable across 2 years.
+# Those are likely influencal as it would make sense the people would be less likely to quite their house during winter that in summer for instance.
+# So a classic fold partitioning is choosen instead
+set.seed(99)
+dataPartitions <- createDataPartition(y = house$price, p = 0.8, list = F)
+training <- house[dataPartitions, ]
+validation <- house[-dataPartitions, ]
+
+# con <- dbConnect(MonetDBLite::MonetDBLite())
+# dbdir <- file.path(tempdir(), 'dbdir')
+# mn_db <- MonetDBLite::src_monetdblite(dbdir)
+# training  <- copy_to(mn_db, house[dataPartitions, ], overwrite = T)
+# validation  <- copy_to(mn_db, house[-dataPartitions, ], overwrite = T)
+# dbDisconnect(con, shutdown = TRUE)
+# MonetDBLite::monetdblite_shutdown()
+
+rm(list = c('house', 'dataPartitions'))
+
+# Multiple predictors linear model
+modLm <- lm(price ~ zipcode + grade + condition + sqft_lot + bedrooms + week, training)
+# modLm <- lm(price ~ . - id - date - year - lat - long + grade, training)
+modLmStep <- stepAIC(modLm, direction = 'both', trace = FALSE)
+# stepAIC got rid of id lat and week
+predLm <- predict(modLmStep, validation)
+accLm <- accuracy(predLm, validation$price)
+
+# GBM boost with tress ML model
+trControl <- trainControl(method = 'repeatedcv', number = 6, repeats = 3, allowParallel = TRUE, verboseIter = FALSE)
+# trControl <- trainControl(method = 'cv', number = 8, allowParallel = TRUE, verboseIter = FALSE)
+# trControl <- trainControl(method = 'boot', number = 1, allowParallel = TRUE)
+modGbm <- train(price ~ zipcode + grade + condition + sqft_lot + bedrooms + week, data = training, method = 'gbm', trControl = trControl, verbose = F) # NOTE : gbm boost with trees
+predGbm <- predict(modGbm, validation)
+accGbm <- accuracy(predGbm, validation$price)
+
+rm(training)
+
+validation.price <- transform(validation, price = as.integer(round(price)), price.gbm = as.integer(round(predGbm)), price.lm = as.integer(round(predLm)))
 
 price.mean <- function(dataset) within(
   cbind(
@@ -71,74 +116,57 @@ price.mean <- function(dataset) within(
   })
 # names(price.mean)[names(price.mean) == 'id'] <- 'count'
 
-house.price.mean <- price.mean(house)
-
-# My 1st aborted approach was to split the data between 2014 and 2015
-# This split is pretty weak because it ignore the seasonality effects on the transactions.
-# This dataset doesn't contains a wide enough time periode to be reliable across 2 years.
-# Those are likely influencal as it would make sense the people would be less likely to quite their house during winter that in summer for instance.
-# So a classic fold partitioning is choosen instead
-set.seed(99)
-dataPartitions <- createDataPartition(y = house$price, p = 0.7, list = F)
-training <- house[dataPartitions, ]
-validation <- house[-dataPartitions, ]
-
-# Multiple predictors linear model
-modLm <- lm(price ~ zipcode + grade + condition + sqft_lot + bedrooms + week, training)
-# modLm <- lm(price ~ . - id - date - year - lat - long + grade, training)
-modLmStep <- stepAIC(modLm, direction = 'both', trace = FALSE)
-# stepAIC got rid of id lat and week
-predLm <- predict(modLmStep, validation)
-accLm <- accuracy(predLm, validation$price)
-
-# GBM boost with tress ML model
-trControl <- trainControl(method = 'repeatedcv', number = 6, repeats = 3, allowParallel = TRUE, verboseIter = FALSE)
-# trControl <- trainControl(method = 'cv', number = 8, allowParallel = TRUE, verboseIter = FALSE)
-# trControl <- trainControl(method = 'boot', number = 1, allowParallel = TRUE)
-modGbm <- train(price ~ zipcode + grade + condition + sqft_lot + bedrooms + week, data = training, method = 'gbm', trControl = trControl, verbose = F) # NOTE : gbm boost with trees
-predGbm <- predict(modGbm, validation)
-accGbm <- accuracy(predGbm, validation$price)
+# house.price.mean <- price.mean(house)
 
 validation.gbm <- price.mean(transform(validation, price = predGbm))
 names(validation.gbm)[names(validation.gbm) == 'price'] <- 'price.gbm'
 
-validation.price.mean <- merge(
-  validation.gbm,
-  aggregate(cbind(price, price.lm) ~ zipcode, cbind(validation[, c('id', 'zipcode', 'price')], price.lm = predLm), mean),
-  by = 'zipcode'
+validation.price.mean <- transform(merge(
+    validation.gbm,
+    aggregate(cbind(price, price.lm) ~ zipcode, cbind(validation[, c('id', 'zipcode', 'price')], price.lm = predLm), mean),
+    by = 'zipcode'
+  ),
+  price = as.integer(round(price)),
+  price.gbm = as.integer(round(price.gbm)),
+  price.lm = as.integer(round(price.lm))
 )
 
-validation.price <- transform(validation, price.gbm = predGbm, price.lm = predLm)
+rm(list = c('price.mean', 'validation.gbm'))
 
-shinyServer(function(input, output, session) {
+server <- function(input, output, session) {
 
   # values <- reactiveValues(starting = TRUE)
   # session$onFlushed(function() {
   #   values$starting <- FALSE
   # })
 
-  price.subset <- function(dataset, input) dataset[dataset$price >= input$price[1] & dataset$price <= input$price[2], ]
-
-  dataset.custom <- function(dataset, input, model) {
-    dataset <- dataset[dataset$zipcode == input$zipcode, c('grade', 'condition', 'zipcode', 'sqft_lot', 'bedrooms', 'week')][1, ]
-    dataset[, c('grade', 'condition', 'sqft_lot', 'bedrooms', 'week')] <- c(input$grade, input$condition, input$sqft_lot, input$bedrooms, input$week)
-    transform(
-      cbind(dataset, price = predict(model, newdata = dataset)),
-      zipcode = as.numeric(levels(zipcode))[zipcode])
+  price.subset <- function(dataset, price){
+    if(is.null(price)) price <- range(validation$price)
+    dataset[dataset$price >= price[1] & dataset$price <= price[2], ]
   }
 
+  dataset.custom <- function(dataset, input, model)
+    if(!is.null(input$zipcode)) {
+      dataset <- dataset[dataset$zipcode == input$zipcode, c('grade', 'condition', 'zipcode', 'sqft_lot', 'bedrooms', 'week')][1, ]
+      dataset[, c('grade', 'condition', 'sqft_lot', 'bedrooms', 'week')] <- c(input$grade, input$condition, input$sqft_lot, input$bedrooms, input$week)
+      transform(
+        cbind(dataset, price = predict(model, dataset)),
+        zipcode = as.numeric(levels(zipcode))[zipcode]
+      )
+    }
+
   house.react <- reactive({
-    price.subset(validation.price, input)
+    price.subset(validation.price, input$price)
   })
 
   price.mean.react <- reactive({
-    price.subset(validation.price.mean, input)
+    price.subset(validation.price.mean, input$price)
   })
 
   validation.react <- reactive({
     dataset <- transform(validation.price.mean, zipcode = as.numeric(levels(zipcode))[zipcode])
     brushed.subset <- brushedPoints(dataset, input$brush.subset, xvar = 'zipcode', yvar = 'price')
-    if (nrow(brushed.subset) > 1)
+    if (nrow(brushed.subset))
       dataset[dataset$zipcode %in% brushed.subset$zipcode & dataset$price %in% brushed.subset$price, ]
     else
       dataset
@@ -152,16 +180,12 @@ shinyServer(function(input, output, session) {
     dataset.custom(validation, input, modGbm)
   })
 
-  output$workers <- renderText({ getDoParWorkers() })
-
-  output$modLmStep <- renderPrint({ print(summary(modLmStep)) })
-
   output$price <- renderUI({
     sliderInput('price',
                 'Subset by price:',
-                min = min(as.integer(validation.price$price.gbm)),
-                max = max(as.integer(ceiling(validation.price$price.gbm))),
-                value = range(validation.price$price.gbm))
+                min = min(validation$price),
+                max = max(validation$price),
+                value = range(validation$price))
   })
 
   output$zipcode <- renderUI({
@@ -217,54 +241,74 @@ shinyServer(function(input, output, session) {
 
   output$distPrice <- renderPlot({
     # generate bins based on input$bins from ui.R
-    price    <- house.react()$price.gbm
+    price <- house.react()$price.gbm
     bins <- seq(min(price), max(price), length.out = ifelse(length(price) > 30, 30, length(price)))
 
     # draw the histogram with the specified number of bins
     hist(price, breaks = bins, col = 'darkgray', border = 'white', xlab = 'Price')
   })
 
+  output$count <- renderText({ nrow(house.react()) })
+
+  output$workers <- renderText({ getDoParWorkers() })
+
   output$map <- renderLeaflet({
     # if (values$starting) return(NULL)
 
     house.subset <- house.react()
 
-    price.mean.subset <- transform(price.mean.react(), price = price.gbm)
-
-    price.popup <- paste0('Real price: $', house.subset$price, '<br />', 'GBM price: $', house.subset$price.gbm, '<br />', 'LM price: $', house.subset$price.lm, '<br />')
-
     house.subset %>%
       leaflet() %>%
       addTiles(options = tileOptions(detectRetina = TRUE)) %>%
-      addMarkers(popup = price.popup, clusterOptions = markerClusterOptions(), options = markerOptions()) %>%
-      # addCircleMarkers(radius = 10 * house$price.rescale, color = house$price.color, opacity = 0.5, fillOpacity = 0.5)
-      addCircles(lat = price.mean.subset$lat, lng = price.mean.subset$long, weight = 3, radius = price.mean.subset$count * 20, color = price.mean.subset$price.color, opacity = 0.5, fillOpacity = 0.5) %>%
-      addLegend(title = 'Mean price', labels = seq(max(as.integer(ceiling(validation.price$price.gbm))), min(as.integer(validation.price$price.gbm)), len = 9), colors = colorRampPalette(c('#DB4A46', '#F0AD4E', '#59BB59'))(9), position = 'bottomright')
+      fitBounds(~min(house.subset$long), ~min(house.subset$lat), ~max(house.subset$long), ~max(house.subset$lat))
   })
 
-  output$price.predLm <- renderText({ paste0('$ ', round(predLm.react()$price)) })
+  # Incremental changes to the map (in this case, replacing the
+  # circles when a new color is chosen) should be performed in
+  # an observer. Each independent set of things that can change
+  # should be managed in its own observer.
+  observe({
 
-  output$price.predGbm <- renderText({ paste0('$ ', round(predGbm.react()$price)) })
+    house.subset <- house.react()
+
+    price.mean.subset <- transform(price.mean.react(), price = price.gbm)
+
+    price.popup <- paste0('Real price: $ ', house.subset$price, '<br />', 'GBM price: $ ', house.subset$price.gbm, '<br />', 'LM price: $ ', house.subset$price.lm)
+
+    leafletProxy('map', data = house.subset) %>%
+      addMarkers(popup = price.popup, clusterOptions = markerClusterOptions(), options = markerOptions()) %>%
+      # addCircleMarkers(radius = 10 * house$price.rescale, color = house$price.color, opacity = 0.5, fillOpacity = 0.5)
+      addCircles(lat = price.mean.subset$lat, lng = price.mean.subset$long, weight = 4, radius = price.mean.subset$count * 30, color = price.mean.subset$price.color, opacity = 0.5, fillOpacity = 0.5) %>%
+      addLegend(title = 'Mean price', labels = seq(max(validation.price$price), min(validation.price$price), len = 9), colors = colorRampPalette(c('#DB4A46', '#F0AD4E', '#59BB59'))(9), position = 'bottomright')
+  })
+
+  output$price.predLm <- renderText({
+      if(!is.null(input$zipcode)) paste0('$ ', round(predLm.react()$price))
+    })
+
+  output$price.predGbm <- renderText({
+      if(!is.null(input$zipcode)) paste0('$ ', round(predGbm.react()$price))
+    })
 
   output$predPlot <- renderPlot({
     validation.subset <- validation.react()
-    # zipcode <- as.numeric(levels(validation.subset$zipcode))[validation.subset$zipcode]
-
-    # validation.subset <- validation.price.mean
     predLm.subset <- predLm.react()
     predGbm.subset <- predGbm.react()
-    if(nrow(validation.subset)){
-      plot(validation.subset$zipcode, validation.subset$price, main  = 'Prices predictions', xlab = 'zipcode', ylab = 'price', pch = 1)
-      points(validation.subset$zipcode, validation.subset$price.gbm, col = 'red', lwd = 2, pch = 5)
-      # points(validation.subset$zipcode, validation.subset$price.gbm, col = 'blue', lwd = 2, pch = 5)
-      # abline(modGbm, col = 'blue', lwd = 2)
-      # points(validation.subset$zipcode, predGbm, col = 'blue', lwd = 2)
-      points(predLm.subset$zipcode, predLm.subset$price, col = 'green', lwd = 4, pch = 10)
-      abline(predLm.subset$price, 0, col = 'green', lwd = 2)
-      points(predGbm.subset$zipcode, predGbm.subset$price, col = 'blue', lwd = 4, pch = 10)
-      abline(predGbm.subset$price, 0, col = 'blue', lwd = 2)
-      legend('topright', c('Price', 'GBM ML prediction', 'LM custom prediction', 'GBM ML custom prediction'), cex = 0.8, col=c('black', 'red', 'green', 'blue'), pch = c(1, 5, 10, 10))
-    }
+
+    plot(validation.subset$zipcode, validation.subset$price, main  = 'Prices predictions', xlab = 'zipcode', ylab = 'price', pch = 1)
+    points(validation.subset$zipcode, validation.subset$price.gbm, col = 'red', lwd = 2, pch = 5)
+    # points(validation.subset$zipcode, validation.subset$price.gbm, col = 'blue', lwd = 2, pch = 5)
+    # abline(modGbm, col = 'blue', lwd = 2)
+    # points(validation.subset$zipcode, predGbm, col = 'blue', lwd = 2)
+    points(predLm.subset$zipcode, predLm.subset$price, col = 'green', lwd = 4, pch = 10)
+    abline(predLm.subset$price, 0, col = 'green', lwd = 2)
+    points(predGbm.subset$zipcode, predGbm.subset$price, col = 'blue', lwd = 4, pch = 10)
+    abline(predGbm.subset$price, 0, col = 'blue', lwd = 2)
+    legend('topright', c('Price', 'GBM ML prediction', 'LM custom prediction', 'GBM ML custom prediction'), cex = 0.8, col=c('black', 'red', 'green', 'blue'), pch = c(1, 5, 10, 10))
   })
 
-})
+  output$modLmStep <- renderPrint({ print(summary(modLmStep)) })
+
+}
+
+shinyServer(server)
