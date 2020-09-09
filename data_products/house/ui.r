@@ -33,8 +33,8 @@ ui <- navbarPage(
       plotOutput('distPrice', height = '250px'),
       h6('NOTE : the circle radius is the count of sales, and the color the average predicted prices, both per zipcode.'),
       h6('The individal sale transactions are grouped by cluster with the count of transactions in each cluster.'),
-      h6('INFO: Filtered sales count from the validation sample group:', code(textOutput('count'))),
-      h6('Available calculation units:', code(textOutput('workers')))
+      h6('INFO: Filtered sales count from the validation sample group:', code(textOutput('count')))
+      # h6('Available calculation units:', code(textOutput('workers')))
       # NOTE : manually trigger the calculation if too slow
       # submitButton('Execute')
     ),
@@ -88,7 +88,7 @@ ui.dev <- navbarPage(
 
         h2('Map explorer'),
         h4('Filter'),
-        htmlOutput('price'),
+        htmlOutput('price'), # TODO : fix it
         # h5('House count:'),
         # textOutput('house.count'),
         # NOTE : manually trigger the calculation if too slow
@@ -96,8 +96,8 @@ ui.dev <- navbarPage(
         plotOutput('distPrice', height = '250px'),
         h6('NOTE : the circle radius is the count of sales, and the color the average predicted prices, both per zipcode.'),
         h6('The individal sale transactions are grouped by cluster with the count of transactions in each cluster.'),
-        h6('INFO: Filtered sales count from the validation sample group:', code(textOutput('count'))),
-        h6('Available calculation units:', code(textOutput('workers')))
+        h6('INFO: Filtered sales count from the validation sample group:', code(textOutput('count')))
+        # h6('Available calculation units:', code(textOutput('workers')))
         # NOTE : manually trigger the calculation if too slow
         # submitButton('Execute')
       ),
@@ -132,6 +132,6 @@ ui.dev <- navbarPage(
   )
 )
 
-rm(ui.dev)
+rm(ui)
 
-shinyUI(ui)
+shinyUI(ui.dev)

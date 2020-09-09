@@ -1,9 +1,12 @@
 ---
-title: 'Predict house price using regression'
-subtitle: 'Peer-graded Assignment - Course Project: Shiny Application and Reproducible Pitch'
-author: 'Eddy ∆'
-date: '07/03/2019'
-output: html_document
+title: "Predict house price using regression"
+author: "Eddy ∆"
+date: "07/03/2019"
+output:
+  pdf_document: default
+  html_document: default
+subtitle: 'Peer-graded Assignment - Course Project: Shiny Application and Reproducible
+  Pitch'
 ---
 
 ```{r setup, include=FALSE}
@@ -161,16 +164,70 @@ in95 / nrow(testing)
 
 # France
 [Demandes de valeurs foncières](https://www.data.gouv.fr/fr/datasets/5c4ae55a634f4117716d5656)
-[valeursfoncieres-2014.txt](https://www.data.gouv.fr/fr/datasets/r/1be77ca5-dc1b-4e50-af2b-0240147e0346)
-[valeursfoncieres-2015.txt](https://www.data.gouv.fr/fr/datasets/r/7161c9f2-3d91-4caf-afa2-cfe535807f04)
+[valeursfoncieres-2018.txt](https://www.data.gouv.fr/fr/datasets/r/1be77ca5-dc1b-4e50-af2b-0240147e0346)
+[valeursfoncieres-2017.txt](https://www.data.gouv.fr/fr/datasets/r/7161c9f2-3d91-4caf-afa2-cfe535807f04)
 [valeursfoncieres-2016.txt](https://www.data.gouv.fr/fr/datasets/r/0ab442c5-57d1-4139-92c2-19672336401c)
-[valeursfoncieres-2017.txt](https://www.data.gouv.fr/fr/datasets/r/09f013c5-9531-444b-ab6c-7a0e88efd77d)
-[valeursfoncieres-2018.txt](https://www.data.gouv.fr/fr/datasets/r/dc13282f-3c7a-4fac-b1f3-3939e39d45f6)
+[valeursfoncieres-2015.txt](https://www.data.gouv.fr/fr/datasets/r/09f013c5-9531-444b-ab6c-7a0e88efd77d)
+[valeursfoncieres-2014.txt](https://www.data.gouv.fr/fr/datasets/r/dc13282f-3c7a-4fac-b1f3-3939e39d45f6)
 [valeursfoncieres-2014.txt](https://static.data.gouv.fr/resources/demande-de-valeurs-foncieres/20190417-123017/valeursfoncieres-2014.txt)
 [valeursfoncieres-2015.txt](https://static.data.gouv.fr/resources/demande-de-valeurs-foncieres/20190417-124719/valeursfoncieres-2015.txt)
 [valeursfoncieres-2016.txt](https://static.data.gouv.fr/resources/demande-de-valeurs-foncieres/20190417-145226/valeursfoncieres-2016.txt)
 [valeursfoncieres-2017.txt](https://static.data.gouv.fr/resources/demande-de-valeurs-foncieres/20190417-143602/valeursfoncieres-2017.txt)
 [valeursfoncieres-2018.txt](https://static.data.gouv.fr/resources/demande-de-valeurs-foncieres/20190417-121621/valeursfoncieres-2018.txt)
+
+[Données cadastrales ouvertes](https://cadastre.data.gouv.fr/data/etalab-dvf/latest/csv/)
+
+# UK
+[HM Land Registry Open Data](https://landregistry.data.gov.uk)
+[Statistical data set | Price Paid Data](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads)
+[the complete Price Paid Transaction Data as a CSV file](http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-complete.csv)
+[the complete 2020 data](http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-2020.csv)
+[the complete 2019 data](http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-2019.csv)
+[the complete 2018 data](http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-2018.csv)
+[the complete 2017 data](http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-2017.csv)
+[the complete 2016 data](http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-2016.csv)
+[the complete 2015 data](http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-2015.csv)
+[the complete 2014 data](http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-2014.csv)
+
+```{r files_stats, engine = 'bash', eval = FALSE}
+curl -o- -L https://yarnpkg.com/install.sh | bash -s -- --version 1.15.2
+
+curl -o- -L https://cadastre.data.gouv.fr/data/etalab-dvf/latest/csv/2014/full.csv.gz | gunzip -c | xz -9e -T 0 > ~/Downloads/cadastre_2014.csv.xz
+
+i=2014
+x=`date +%Y`
+until [ $i -gt `date +%Y` - 1 ]
+do
+  echo i: $i
+  curl -o- -L https://cadastre.data.gouv.fr/data/etalab-dvf/latest/csv/$i/full.csv.gz | gunzip -c | xz -9e -T 0 > ~/Downloads/cadastre_$i.csv.xz
+  curl -o- -L https://static.data.gouv.fr/resources/demande-de-valeurs-foncieres/20190417-121621/valeursfoncieres-$i.txt | xz -9e -T 0 > ~/Downloads/valeurs_foncieres_$i.csv.xz
+  ((i=i+1))
+done
+
+
+wget -O - http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-complete.csv | xz -9e -T 0 > uk_land_value_complete.csv.xz
+xz -T 0 -d -c uk_land_value_complete.csv.xz | rg '","'$i'-' | xz -9e -T 0 > ~/Downloads/uk_land_value_$i.csv.xz
+
+load_year(){
+  rg -j `nproc --all` -z -e '","'$1'-\d{2}-\d{2} \d{2}:\d{2}","' uk_land_value_complete.csv.xz | xz -9e -T 0 > ~/Downloads/uk_land_value_$1.csv.xz
+}
+
+parallel load_year {} ::: `perl -e 'for(1995..1996){print "$_\n"}'`
+parallel --result x{}.txt echo "v{}x{}z" ::: `perl -e 'for(1995..1996){print "$_\n"}'`
+
+parallel --eta --bar git mv uk_land_value_{}.csv.xz gb_land_value_{}.csv.xz ::: `perl -e 'for(1995..2020){print "$_\n"}'`
+
+i=2019
+x=`date +%Y`
+until [ $i -gt `date +%Y` ]
+do
+  echo i: $i
+  # xz -T 0 -d -c uk_land_value_complete.csv.xz | rg '","'$i'-' | xz -9e -T 0 > ~/Downloads/uk_land_value_$i.csv.xz
+  rg -j `nproc --all` -z -e '","'$i'-\d{2}-\d{2} \d{2}:\d{2}","' uk_land_value_complete.csv.xz | xz -9e -T 0 > ~/Downloads/uk_land_value_$i.csv.xz
+  ((i=i+1))
+done
+
+```
 
 ```{r}
 data_dir <- 'data'
